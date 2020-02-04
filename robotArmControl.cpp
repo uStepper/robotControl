@@ -259,17 +259,18 @@ void robotArmControl::run() {
             if(this->targetServo != this->currentServo)
             {
               this->setServo(this->targetServo);
-              delay(200);
             }
-            
-            if(this->targetPumpState != this->currentPumpState)
+            if(this->targetServo == this->filteredServo)
             {
-              this->setPump(this->targetPumpState);
-            }
+              if(this->targetPumpState != this->currentPumpState)
+              {
+                this->setPump(this->targetPumpState);
+              }
 
-            Serial.println("TARGET POS REACHED");
-            comm.send("REACHED");
-            this->targetReached = true;
+              Serial.println("TARGET POS REACHED");
+              comm.send("REACHED");
+              this->targetReached = true;
+            }
           }
         }
         
@@ -335,7 +336,9 @@ void robotArmControl::run() {
           }
         }
       }
+      this->setServo();
     }
+    
   } else {
     while (1) {
       cli();
@@ -585,21 +588,59 @@ void robotArmControl::calcVelocityProfileMovement(void) {
   }
   
 }
+void robotArmControl::setServo() {
+  uint16_t servoSetting;
+  static int32_t lastRun = millis();
+  if(millis() - lastRun >= 15)
+  {
+    lastRun = millis();
+  }
+  else
+  {
+    return;
+  }
+  
+  if(this->filteredServo < this->currentServo)
+  {
+    this->filteredServo += 1.0;
+    if(this->filteredServo > this->currentServo)
+    {
+      this->filteredServo = this->currentServo;
+    }
+  }
+  else if(this->filteredServo > this->currentServo)
+  {
+    this->filteredServo -= 1.0;
+    if(this->filteredServo < this->currentServo)
+    {
+      this->filteredServo = this->currentServo;
+    }
+  }
+  else
+  {
+    return;
+  }
+  DEBUG_PRINTLN(this->filteredServo);
+  servoSetting = (uint16_t)(this->filteredServo*22.222222222)+1000;
+  if(servoSetting < 1000)
+  {
+    servoSetting = 1000;
+  }
+  if(servoSetting > 5000)
+  {
+    servoSetting = 5000;
+  }
+
+  OCR4A = servoSetting;
+}
+
 void robotArmControl::setServo(float servoVal) {
     DEBUG_PRINT("Servo: ");
     DEBUG_PRINTLN(servoVal);
     uint16_t servoSetting;
-    servoSetting = (uint16_t)(servoVal*22.222222222)+1000;
-    if(servoSetting < 1000)
-    {
-      servoSetting = 1000;
-    }
-    if(servoSetting > 5000)
-    {
-      servoSetting = 5000;
-    }
-    OCR4A = servoSetting;
+    //this->filteredServo = this->currentServo;
     this->currentServo = servoVal;
+    
 }
 
 void robotArmControl::setXYZ() {

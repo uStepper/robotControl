@@ -41,6 +41,7 @@ var logElement 		= document.getElementById("log");
 var servoElement 	= document.getElementById('servo')
 var servoMin 		= document.getElementById('minServoValue');
 var servoMax 		= document.getElementById('maxServoValue');
+var playBackSpeed	= document.getElementById('playBackSpeed');
 var pauseBtn		= document.getElementById('pause');
 var playBtn			= document.getElementById('play');
 var stopBtn			= document.getElementById('stop');
@@ -225,7 +226,10 @@ pumpBtn.onclick = function(){
 };
 
 playBtn.onclick  = function(){
-	sendCommand("M11");
+	var command = [
+		{name: "F", value: parseInt(playBackSpeed.value,10) },
+	];
+	sendCommand("M11",command);
 }
 
 pauseBtn.onclick  = function(){

@@ -79,6 +79,8 @@ private:
 
   void setServo(float servoVal);
 
+  void setServo();
+
   bool isRecording = false;
   bool targetReached = true;
 
@@ -119,6 +121,7 @@ private:
   bool targetPumpState = 0;
   float targetServo = 0.0;
   float currentServo = 0.0;
+  float filteredServo = 0.0;
   bool currentPumpState = 0;
   // Feedrate in mm/s
   float feedrate = 10.0;

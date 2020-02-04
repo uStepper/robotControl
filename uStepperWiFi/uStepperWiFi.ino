@@ -27,6 +27,7 @@ float servoValue = 0.0;
 bool pumpState = false;
 uint8_t statusLed = 4;
 uint32_t previousBlink = 0;
+float playBackValue = 10.0;
 
 // Local path to save the GCode recordings
 char recordPath[] = "/recording.txt";
@@ -150,7 +151,8 @@ void playNextLine( void ){
     
     strcat(command, "G1 ");
     strcat(command, buf);
-    strcat(command, " F10.0"); // Set feedrate to 10mm/s 
+    strcat(command, " F"); // Set feedrate
+    strcat(command, String(playBackValue).c_str()); //to playBackValue
 
     // For debugging
     websocket.broadcastTXT("Playing line " + String(recordLineCount) + ": " + String(command));
@@ -245,6 +247,28 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t len) {
 
     // Play recording
     else if (strstr(packet, "M11")) {
+      Serial.println(packet);
+      char *start;
+      char *end;
+      size_t len;
+      int i;
+
+      char buf[20] = {'\0'};
+
+      // Find start of parameter value
+      if (start = strstr(packet, "F")) {
+
+        start++; // Not interested in the param name
+        for(i = 0; (*start >= '0' && *start <= '9'); i++)
+        {
+          buf[i] = *start++;
+        }
+        buf[i] = '\0';
+
+        // Now convert the string in buf to a float
+        playBackValue = atof(buf);
+      }
+
       if( playRecording ){
         // Reset playback of recording
         recordLineCount = 0;  
