@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>uStepper Robot Control</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" type="text/css" href="assets/css/framework.css">
+	<link rel="stylesheet" type="text/css" href="assets/css/fonticons.css">
+	<link rel="stylesheet" type="text/css" href="assets/css/style.css">
+	
+
+</head>
+<body>
+	<header>
+		<div class="container position-relative d-flex justify-content-between">
+
+			<div id="slogan" class="d-flex">
+				<img id="logo" src="assets/logo.png">
+				<h1><b style="font-family:cooper black;">uStepper</b> Control Panel <small>v0.1</small> </h1>
+			</div>	
+
+			<div id="topbar" class="d-flex">
+				<div id="controls">
+					<button class="btn btn-primary btn-lg" id="homeBtn"><i class="icon-home"></i>Home</button>
+
+					<button class="btn btn-danger btn-lg" id="emergencyBtn"><i class="icon-off"></i>Stop</button>
+				</div>
+
+				<div id="comm-status">
+					<i class="icon-wifi"></i>			
+					<span>Status</span>
+				</div>
+			</div>
+
+		</div>
+	</header>
+
+	<div class="container">
+		<div class="row">
+
+			<div class="col-md-7">
+				<div class="card mb-3">
+					<div class="card-header">
+						<b>Controls</b>
+					</div>
+					<div class="card-body">
+
+						<div class="row">
+							<div class="col-sm-12">
+
+								<!--
+								<table class="controls">
+					
+									<tr>
+										<td rowspan="2" valign="center"><button class="btn btn-light control x"><span class="icon">X-</span></td>
+										<td><button class="btn btn-light control y"><span class="icon">Y+</span></button></td>
+										<td rowspan="2" valign="center"><button class="btn btn-light control x"><span class="icon">X+</span></td>
+										<td><button class="btn btn-light control z"><span class="icon">Z+</span></button></td>
+									</tr>
+
+									<tr>
+								
+										<td><button class="btn btn-light control y"><span class="icon">Y-</span></button></td>
+										
+										<td><button class="btn btn-light control z"><span class="icon">Z-</span></button></td>
+									</tr>
+				
+								</table>-->
+
+								<div class="d-flex justify-content-center">
+									<div class="joystick-wrapper" id="joystick-wrapper-xy">
+										<span class="axis-label axis-x axis-max">X+</span>
+										<span class="axis-label axis-x axis-min">X-</span>
+										<span class="axis-label axis-y axis-max">Y+</span>
+										<span class="axis-label axis-y axis-min">Y-</span>
+									</div>
+
+									<div class="joystick-wrapper" id="joystick-wrapper-z">
+										<span class="axis-label axis-z axis-max">Z+</span>
+										<span class="axis-label axis-z axis-min">Z-</span>
+									</div>
+								</div>
+								   
+							</div>
+						</div>
+
+						<div class="row mt-4">
+
+							
+
+							<div class="col-lg-4">
+								
+								<button class="btn btn-block btn-secondary mt-4 mb-3 mb-lg-0" id="pumpBtn">Vacuum on</button>
+								
+							</div>
+
+							<div class="col-lg-8">
+								<div class="text-center">
+									<b>Servo</b>
+								</div>
+								<div class="range-labels">
+									<input type="range" class="input-range" id="servo" min="0" max="100" value="0" list="tickmarks" step="1">
+									<div class="label-min">
+										R-
+									</div>
+									<div class="label-max">
+										R+
+									</div>
+								</div>
+								<datalist id="tickmarks">
+									<option value="0" label="0%">
+									<option value="10">
+									<option value="20">
+									<option value="30">
+									<option value="40">
+									<option value="50">
+									<option value="60">
+									<option value="70">
+									<option value="80">
+									<option value="90">
+									<option value="100" label="100%">
+								</datalist>
+							</div>
+
+						</div>
+
+			
+					</div>
+				</div>
+
+				<div class="card mb-3">
+					<div class="card-header">
+						<b>Teach mode control</b>
+					</div>
+
+					<div class="card-body">
+						
+						
+
+						<div class="row">
+							<div class="col-sm-7">
+								<button class="btn btn-icon btn-secondary" id="record"><i class="icon-circle"></i></button>
+								<button class="btn btn-icon btn-secondary" id="play"><i class="icon-play"></i></button>
+								<button class="btn btn-icon btn-secondary" id="pause"><i class="icon-pause"></i></button>
+								<button class="btn btn-icon btn-secondary" id="stop"><i class="icon-stop"></i></button>
+								
+							</div>
+							<div class="col-sm-5">
+								<form action="/upload" method="post" id="uploadForm" enctype="multipart/form-data">
+									<button id="uploadBtn" class="btn btn-secondary btn-block mb-1">
+										<i class="icon-folder-open"></i> Upload job
+									</button>
+									<input type="file" id="uploadFile" name="jobfile" accept=".txt" hidden="true">
+								</form>
+
+								<a class="btn btn-primary btn-block mb-1" href="/recording.txt" download><i class="icon-floppy"></i> Save job</a>
+							</div>
+
+						</div>
+
+						<div id="recording">
+							
+							<h5>Recording <span id="record-len">(0)</span></h5>
+							<button id="recordLine" class="d-none btn btn-primary">Add position</button>
+
+							<div id="lines">
+								<span class='line'>No positions recorded</span>
+							</div>
+
+						</div>
+
+						<!-- <div class="table-responsive">
+							<table class="table table-sm table-bordered">
+								<thead class="thead-light text-center">
+									<tr>
+										<th>ID</th>
+										<th>Status</th>
+										<th>Duration</th>
+										<th>Options</th>
+									</tr>
+								</thead>
+								<tr>
+									<td class="text-center">1</td>
+									<td class="text-center"><span class="badge badge-secondary">Not running</span></td>
+									<td class="text-right">00:00:00</td>
+									<td class="text-right" style="min-width: 200px">
+										<button class="btn btn-outline-primary btn-sm">Play</button>
+										<button class="btn btn-outline-secondary btn-sm">Export</button>
+										<button class="btn btn-outline-danger btn-sm">Delete</button>
+									</td>
+								</tr>
+							</table>
+						</div>-->
+					</div>
+
+				</div>
+			</div>
+
+			<div class="col-md-5">
+
+				<div class="row">
+
+
+					<div class="col-sm-6 col-md-12">
+
+						<div class="card mb-3">
+							<div class="card-header">
+								<b>Telemetry</b>
+							</div>
+							<div class="card-body">
+								
+								<div class="input-group input-group-sm mb-3">
+									<div class="input-group-prepend">
+										<span class="input-group-text">X</span>
+									</div>
+									<input type="number" id="x-pos" class="form-control" disabled placeholder="0">
+									<div class="input-group-append">
+										<span class="input-group-text" id="basic-addon2">mm</span>
+									</div>									
+								</div>
+
+								<div class="input-group input-group-sm mb-3">
+									<div class="input-group-prepend">
+										<span class="input-group-text">Y</span>
+									</div>
+									<input type="number" id="y-pos" class="form-control" disabled placeholder="0">
+									<div class="input-group-append">
+										<span class="input-group-text" id="basic-addon2">mm</span>
+									</div>
+								</div>
+
+								<div class="input-group input-group-sm">
+									<div class="input-group-prepend">
+										<span class="input-group-text">Z</span>
+									</div>
+									<input type="number" id="z-pos" class="form-control" disabled placeholder="0">
+									<div class="input-group-append">
+										<span class="input-group-text" id="basic-addon2">mm</span>
+									</div>									
+								</div>
+
+							</div>
+						</div>
+					</div>
+
+					<div class="col-sm-6 col-md-12">
+						<div class="card mb-3">
+							<div class="card-header">
+								<b>Settings</b>
+							</div>
+							
+							<div class="card-body">
+								<table class="table table-sm">
+									<tr>
+										<td>Max speed:</td>
+										<td>
+											<div class="input-group input-group-sm">
+												<input type="number" class="form-control" value="10" id="maxFeedrate" title="Maximum speed">
+												<div class="input-group-append">
+													<span class="input-group-text" id="basic-addon2">mm/s</span>
+												</div>
+											</div>
+										</td>
+									</tr>
+								
+									<tr>
+											<td>Min speed:</td>
+											<td>
+												<div class="input-group input-group-sm">
+													<input type="number" class="form-control" value="4" id="minFeedrate" title="Minimum speed">
+													<div class="input-group-append">
+														<span class="input-group-text" id="basic-addon2">mm/s</span>
+													</div>
+												</div>
+											</td>
+										</tr>
+									<tr>
+											<td>Speed multiplier:</td>
+											<td><input type="number" class="form-control form-control-sm" value="1.0" title="Manipulate to get the desired speed"></td>
+									</tr>
+
+									<tr>
+										<td>Servo minimum:</td>
+										<td>
+											<div class="input-group input-group-sm">
+												<input type="number" class="form-control" value="0" id="minServoValue" title="Minimum servo angle">
+												<div class="input-group-append">
+													<span class="input-group-text" id="basic-addon2">&#176</span>
+												</div>
+											</div>
+										</td>
+									</tr>
+
+									<tr>
+										<td>Servo maximum:</td>
+										<td>
+											<div class="input-group input-group-sm">
+												<input type="number" class="form-control" value="180" id="maxServoValue" title="Maximum servo angle">
+												<div class="input-group-append">
+													<span class="input-group-text" id="basic-addon2">&#176</span>
+												</div>
+											</div>
+										</td>
+									</tr>
+								</table>
+
+							</div>
+						</div>
+					</div>
+
+
+				</div>
+
+				<div class="card mb-3">
+					<div class="card-header">
+						<b>Log</b>
+					</div>
+					<div class="">
+						<textarea id="log" class="form-control" rows="5"></textarea>
+					</div>
+				</div>
+
+			</div>
+
+		</div>
+
+	</div>
+
+	<script type="text/javascript" src="assets/js/script.js"></script>
+</body>
+</html>

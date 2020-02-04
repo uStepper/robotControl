@@ -1,0 +1,14 @@
+M0 - Stop
+M1 - Pause
+M2 - Start recording
+M3 - Stop recording
+M4 - Servo
+M5 - Vacuum on
+M6 - Vacuum off
+M7 -
+M8 -
+M9 - Request position
+M10 - Set axis speeds 
+M11 - Play recording
+M12 - Pause recording
+M13 - Record line
