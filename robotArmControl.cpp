@@ -14,7 +14,7 @@ uint16_t pumpCompareMatch = 254;
 
 void robotArmControl::checkConnOrientation()
 {
-  int32_t value;
+  /*int32_t value;
   float connectorOrientation[4] = {-10,10,-10,10};
   for(int i; i<4; i++)
   {
@@ -29,8 +29,9 @@ void robotArmControl::checkConnOrientation()
     value = stepper.driver.readRegister(GCONF);
     value ^= (1 << 4);
     stepper.driver.writeRegister(GCONF,value);
-  }
-  stepper.encoder.setHome();
+  }*/
+	stepper.checkOrientation(15);
+  	stepper.encoder.setHome();
 }
 
 
@@ -62,7 +63,7 @@ void robotArmControl::begin() {
       DEBUG_PRINTLN("-- I Am Shoulder --");
       this->direction = -1.0;
       this->checkConnOrientation();
-      stepper.setHoldCurrent(50);
+      stepper.setHoldCurrent(40);
     }
 
     if (bus.addressNum == ELBOW) {
@@ -71,7 +72,7 @@ void robotArmControl::begin() {
       this->direction = -1.0;
       stepper.setHoldCurrent(10);
       delay(2000);
-      stepper.setHoldCurrent(50);
+      stepper.setHoldCurrent(40);
       this->checkConnOrientation();
     }
   }
@@ -92,7 +93,7 @@ void robotArmControl::begin() {
     OCR4A = 1000;
     TCCR4B |= (1 << 1); //Enable clock at prescaler 8. 16MHz/8 = 2MHz/40000 = 50Hz Servo Pulse frequency
     this->checkConnOrientation();
-    stepper.setHoldCurrent(50);
+    stepper.setHoldCurrent(40);
 
     supplyVoltage = (float)analogRead(A2);
     supplyVoltage *= 0.04882813;   //(VRef/1024) * 10   -   10k in series with 1k = 1/10th divider
@@ -131,7 +132,7 @@ void robotArmControl::homeArm() {
   }
   bus.writeCommand(SHOULDER, 'h', 0);
   //homeAxis(CCW);
-  stepper.moveToEnd(CCW, 0.825); // Move to stall is detected
+  stepper.moveToEnd(CCW, 40, 2); // Move to stall is detected
   stepper.encoder.setHome();    // Zero encoder position
   while (this->bus.requestState(ELBOW) != rdy) {
     DEBUG_PRINTLN("ELBOW NOT RDY ");
@@ -145,9 +146,9 @@ void robotArmControl::homeArm() {
   stepper.moveToAngle(880.0);
   bus.writeCommand(SHOULDER, 's', HOMEFEEDRATEFAST);
   delay(300);
-  bus.setAngle(SHOULDER, -60.0);
+  bus.setAngle(SHOULDER, 60.0);
   delay(1000);
-  bus.setAngle(ELBOW, 20.0);
+  bus.setAngle(ELBOW, -20.0);
   while(stepper.getMotorState());
   stepper.encoder.setHome();    // Zero encoder position
   // stepper.moveToAngle(20.0);
@@ -350,9 +351,9 @@ void robotArmControl::run() {
         stepper.stop(HARD);
         stepper.moveToAngle(stepper.encoder.getAngleMoved());
         if (bus.addressNum == ELBOW) {
-          stepper.moveToEnd(CW, 0.7);
+          stepper.moveToEnd(CCW, 40, 2);
         } else {
-          stepper.moveToEnd(CCW, 0.9);
+          stepper.moveToEnd(CW, 40, 2);
         }
         stepper.encoder.setHome(); // Zero encoder position
       } else if (state == stop) {
