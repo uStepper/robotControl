@@ -132,8 +132,7 @@ void robotArmControl::homeArm() {
   }
   bus.writeCommand(SHOULDER, 'h', 0);
   //homeAxis(CCW);
-  stepper.moveToEnd(CCW, 30.0, 5); // Move to stall is detected
-  stepper.moveToEnd(CCW, 30.0, 5); // Move to stall is detected
+  stepper.moveToEnd(CCW, 35.0, 2); // Move to stall is detected
   stepper.encoder.setHome();    // Zero encoder position
   while (this->bus.requestState(ELBOW) != rdy) {
     DEBUG_PRINTLN("ELBOW NOT RDY ");
@@ -352,11 +351,9 @@ void robotArmControl::run() {
         stepper.stop(HARD);
         stepper.moveToAngle(stepper.encoder.getAngleMoved());
         if (bus.addressNum == ELBOW) {
-          stepper.moveToEnd(CCW, 30.0, 5); // Move to stall is detected
-          stepper.moveToEnd(CCW, 30.0, 5); // Move to stall is detected
+          stepper.moveToEnd(CCW, 35.0, 2); // Move to stall is detected
         } else {
-          stepper.moveToEnd(CW, 30.0, 5); // Move to stall is detected
-          stepper.moveToEnd(CW, 30.0, 5); // Move to stall is detected
+          stepper.moveToEnd(CW, 35.0, 2); // Move to stall is detected
         }
         stepper.encoder.setHome(); // Zero encoder position
       } else if (state == stop) {
