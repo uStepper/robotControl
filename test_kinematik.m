@@ -17,13 +17,14 @@ ELBOWOFFSET = 45.0
 GEARRATIO = 5.1
 disp('Code implementation')
 disp('Input angles:')
-rot = deg2rad(3.65);
-right = deg2rad(139.32);
-left = deg2rad(68.49);
+rot = -111.19
+right = -412.10
+left = -340.68
 
-rad2deg(rot)
-rad2deg(right)
-rad2deg(left)
+rot = deg2rad(rot/GEARRATIO);
+left = deg2rad(((left-right)/GEARRATIO)+ELBOWOFFSET);
+right = deg2rad((right/GEARRATIO)+SHOULDEROFFSET);
+
 
 T1 = rot;#base
 T2 = right;#shoulder
@@ -40,9 +41,9 @@ y = sin(rot)*k1
 
 ##inverse kinematics to get angles from XYZ:
 
-x = 201.1
-y= 2.6
-z=149.31
+%x = 250
+%y= 100
+%z=0
 
 rot = atan2(y,x);
 
@@ -64,7 +65,7 @@ left = atan2(sqrt(1-(c*c)), c);
 right = rad2deg(right) - SHOULDEROFFSET;
 left = rad2deg(left) - ELBOWOFFSET;
 
-left = -(left+right)*GEARRATIO;
+left = (left+right)*GEARRATIO;
 right = right * GEARRATIO;
 rot = rad2deg(rot) * GEARRATIO;
 
