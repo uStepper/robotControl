@@ -47,7 +47,7 @@ public:
 
   void homeArm(void);
 
-  bool checkLimits(float rot, float left, float right);
+  uint8_t checkLimits(void);
 
   void setPump(bool state);
 
