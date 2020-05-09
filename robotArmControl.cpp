@@ -280,8 +280,9 @@ void robotArmControl::run() {
         if(this->sx != 0.0 || this->sy != 0.0 || this->sz != 0.0 )
         {
           continous = 1;
-          this->tx = this->x + (this->sx * 0.2);
-          this->ty = this->y + (this->sy * 0.2);
+          float rot = atan2(this->y, this->x);
+          this->tx = this->x + (this->sx * 0.2) + ((cos(rot) * this->sy)*0.2);
+          this->ty = this->y + ((sin(rot) * this->sy)*0.2);
           this->tz = this->z + (this->sz * 0.2);
           this->xyzToAngles(this->angleTargetBase, this->angleTargetElbow,
                      this->angleTargetShoulder, tx, ty, tz);
