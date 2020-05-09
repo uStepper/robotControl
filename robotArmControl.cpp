@@ -61,7 +61,7 @@ void robotArmControl::begin() {
     if (bus.addressNum == SHOULDER) {
       // stepper.encoder.setHome();
       DEBUG_PRINTLN("-- I Am Shoulder --");
-      this->direction = -1.0;
+      this->direction = 1.0;
       this->checkConnOrientation();
       stepper.setHoldCurrent(40);
     }
@@ -81,7 +81,7 @@ void robotArmControl::begin() {
   if (bus.addressNum == BASE) {
     // stepper.encoder.setHome();
     comm.begin();
-    this->direction = -1.0;
+    this->direction = 1.0;
     pinMode(3,INPUT);
     pinMode(2,INPUT); //Set as input initially to make sure pwm output is disable on powerup
     
@@ -146,7 +146,7 @@ void robotArmControl::homeArm() {
   stepper.moveToAngle(880.0);
   bus.writeCommand(SHOULDER, 's', HOMEFEEDRATEFAST);
   delay(300);
-  bus.setAngle(SHOULDER, 60.0);
+  bus.setAngle(SHOULDER, -60.0);
   delay(1000);
   bus.setAngle(ELBOW, -20.0);
   while(stepper.getMotorState());
@@ -176,9 +176,10 @@ void robotArmControl::run() {
   bool continous = 0;
   uint8_t jointsAllowedToMove;
   uint16_t adcMeas;
+  uint32_t gammeltid = 0;
+  
 
   if (bus.addressNum == BASE) {
-    
     while (1) {
       // Listen for commands from GUI or UART depending on what is defined in
       // config
@@ -196,7 +197,7 @@ void robotArmControl::run() {
         this->angleShoulder = this->bus.requestAngle(SHOULDER);
         angleToxyz(this->angleBase, this->angleElbow, this->angleShoulder,x,y,z);
         // Check if target is reached
-        if( this->targetReached == false ){
+        /*if( this->targetReached == false ){
           
           if(this->elbowTargetReached != 0)
           {
@@ -273,7 +274,7 @@ void robotArmControl::run() {
               this->targetReached = true;
             }
           }
-        }
+        }*/
         
        
         if(this->sx != 0.0 || this->sy != 0.0 || this->sz != 0.0 )
@@ -350,7 +351,7 @@ void robotArmControl::run() {
       if (state == home) {
         stepper.stop(HARD);
         stepper.moveToAngle(stepper.encoder.getAngleMoved());
-        if (bus.addressNum == ELBOW) {
+        if (ptr->direction<0) {
           stepper.moveToEnd(CCW, 35.0, 2); // Move to stall is detected
         } else {
           stepper.moveToEnd(CW, 35.0, 2); // Move to stall is detected
@@ -367,10 +368,10 @@ void robotArmControl::run() {
         stepper.setMaxVelocity(currentCommandArgument.f);
       } else if (state == 5) {
         stepper.setMaxVelocity(currentCommandArgument.f);
-        if (currentCommandArgument.f < 0.0) {
-          stepper.runContinous(CCW);
-        } else {
+        if (ptr->direction * currentCommandArgument.f < 0.0) {
           stepper.runContinous(CW);
+        } else {
+          stepper.runContinous(CCW);
         }
       } else if (state == setAcceleration) {
         stepper.setMaxAcceleration(currentCommandArgument.f);
@@ -395,8 +396,7 @@ uint8_t robotArmControl::calcVelocityProfile(void) {
   float baseDistance, elbowDistance, shoulderDistance;
   float euclideanDistance;
   float angularFeedrate = FEEDRATETOANGULARFEEDRATE(this->feedrate);
-  uint8_t jointsAllowedToMove = 0;    //0 = not allowed to move, 1 allowed to move. bit0 = base, bit1 = shoulder, bit2 = elbow
-  this->angleBase = stepper.encoder.getAngleMoved();
+  this->angleBase = ptr->direction * stepper.encoder.getAngleMoved();
   this->angleShoulder = this->bus.requestAngle(SHOULDER);
   this->angleElbow = this->bus.requestAngle(ELBOW);
 /*
@@ -423,17 +423,16 @@ uint8_t robotArmControl::calcVelocityProfile(void) {
     baseDistance = this->angleTargetBase - this->angleBase;
   }
   
-  
   elbowDistance = this->angleTargetElbow - this->angleElbow;
   shoulderDistance = this->angleTargetShoulder - this->angleShoulder;
-/*
+
   DEBUG_PRINT("BaseDist: ");
   DEBUG_PRINTFLOAT(baseDistance,5);
   DEBUG_PRINT(" ElbowDist: ");
   DEBUG_PRINTFLOAT(elbowDistance,5);
   DEBUG_PRINT(" ShoulderDist: ");
   DEBUG_PRINTLNFLOAT(shoulderDistance,5);
-*/
+
   euclideanDistance =
       sqrt((baseDistance * baseDistance) + (elbowDistance * elbowDistance) +
            (shoulderDistance * shoulderDistance));
@@ -442,57 +441,8 @@ uint8_t robotArmControl::calcVelocityProfile(void) {
   this->targetBaseSpeed = (baseDistance / euclideanDistance) * angularFeedrate;
   this->targetElbowSpeed = (elbowDistance / euclideanDistance) * angularFeedrate;
   this->targetShoulderSpeed = (shoulderDistance / euclideanDistance) * angularFeedrate;
-  DEBUG_PRINTLN(abs(this->angleBase));
-  if(abs(this->angleBase) < (160.0 * GEARRATIO))
-  {
-    DEBUG_PRINTLN("MASTER CAN RUN");
-    jointsAllowedToMove |= 0x01;
-  }
-
-  if(this->angleShoulder > (-120.0 * GEARRATIO))
-  {
-    jointsAllowedToMove |= 0x02;  //ok
-  }
-  if(this->targetShoulderSpeed > 0.0)
-  {
-    if((abs(this->angleElbow) + 20.0) < abs(this->angleShoulder))
-    {
-      if(this->angleShoulder < -10.0)
-      {
-        jointsAllowedToMove |= 0x02;
-      }
-      else
-      {
-        jointsAllowedToMove &= ~0x02;
-      }
-    }
-    else
-    {
-      jointsAllowedToMove &= ~0x02;
-    }
-  }
+  //DEBUG_PRINTLN(abs(this->angleBase));
   
-  if((this->angleElbow + 20.0) < -this->angleShoulder)
-  {
-    jointsAllowedToMove |= 0x04;
-  }
-  if(this->targetElbowSpeed < 0.0)
-  {
-    if(this->angleElbow > 10.0)
-    {
-      jointsAllowedToMove |= 0x04;
-    }
-    else
-    {
-      jointsAllowedToMove &= ~0x04;
-    }
-  }
-
-  if(this->sy == 0.0)
-  {
-    DEBUG_PRINTLN("MASTER STOPPED");
-    jointsAllowedToMove &= ~0x01;
-  }
 
   //jointsAllowedToMove |= 0x04;
   /*
@@ -516,7 +466,7 @@ uint8_t robotArmControl::calcVelocityProfile(void) {
   /*stepper.setMaxAcceleration(nextCommandArgument.f);
   stepper.setMaxDeceleration(nextCommandArgument.f);*/
 
-  return jointsAllowedToMove;
+  return this->checkLimits();
 }
 
 void robotArmControl::calcVelocityProfileMovement(void) {
@@ -557,7 +507,7 @@ void robotArmControl::calcVelocityProfileMovement(void) {
            (shoulderDistance * shoulderDistance));
 
   
-  this->targetBaseSpeed = -(baseDistance / euclideanDistance) * angularFeedrate;
+  this->targetBaseSpeed = (baseDistance / euclideanDistance) * angularFeedrate;
   this->targetElbowSpeed = (elbowDistance / euclideanDistance) * angularFeedrate;
   this->targetShoulderSpeed = (shoulderDistance / euclideanDistance) * angularFeedrate;
 
@@ -589,6 +539,7 @@ void robotArmControl::calcVelocityProfileMovement(void) {
   }
   
 }
+
 void robotArmControl::setServo() {
   uint16_t servoSetting;
   static int32_t lastRun = millis();
@@ -705,6 +656,39 @@ void robotArmControl::execute(char *command) {
     }
 
     else {
+      if(this->sx!=0)
+      {
+        if(this->sx>0 && this->sx<10)
+        {
+          this->sx=10;
+        }
+        else if(this->sx<0 && this->sx>-10)
+        {
+          this->sx=-10;
+        }
+      }
+      if(this->sy!=0)
+      {
+        if(this->sy>0 && this->sy<10)
+        {
+          this->sy=10;
+        }
+        else if(this->sy<0 && this->sy>-10)
+        {
+          this->sy=-10;
+        }
+      }
+      if(this->sz!=0)
+      {
+        if(this->sz>0 && this->sz<10)
+        {
+          this->sz=10;
+        }
+        else if(this->sz<0 && this->sz>-10)
+        {
+          this->sz=-10;
+        }
+      }
       this->feedrate = sqrt((this->sx*this->sx) + (this->sy*this->sy) + (this->sz*this->sz));
       /*
       if (sx) {
@@ -853,7 +837,7 @@ void robotArmControl::xyzToAngles(float &rot, float &left, float &right, float x
 
   right -= SHOULDEROFFSET;
 
-  left = -((left + right) *
+  left = ((left + right) *
            RAD2DEGGEARED); // Remeber to map elbow angle down to motor angle
   right *= RAD2DEGGEARED;
 /*
@@ -888,7 +872,7 @@ void robotArmControl::angleToxyz(float rot, float left, float right,
   right *= DEG2RADGEARED;
   left *= DEG2RADGEARED;
 
-  left = (-left - right) + ELBOWOFFSET; // Remember to map secondary gear angle to elbow angle !
+  left = (left - right) + ELBOWOFFSET; // Remember to map secondary gear angle to elbow angle !
   right += SHOULDEROFFSET;
 
   z = ZOFFSET + sin(right) * LOWERARMLEN -
@@ -929,14 +913,13 @@ void robotArmControl::setMotorAngle(uint8_t num, float angle) {
 
 // Function is only used by master to control all three motors
 void robotArmControl::setMotorSpeed(uint8_t num, float speed) {
-  float velocity = this->direction * speed;
 
   if (num == BASE) {
-    stepper.setMaxVelocity(velocity);
+    stepper.setMaxVelocity(speed);
 
   } else {
 
-    bus.setSpeed(num, velocity);
+    bus.setSpeed(num, speed);
   }
 }
 
@@ -947,41 +930,70 @@ void robotArmControl::runContinously(uint8_t num, float speed) {
   if (num == BASE) {
     stepper.setMaxVelocity(velocity);
 
-    if (this->direction * velocity < 0.0) {
+    if (velocity < 0.0) {
       stepper.runContinous(CCW);
     } else {
       stepper.runContinous(CW);
     }
   } else {
 
-    bus.runContinously(num, velocity);
+    bus.runContinously(num, speed);
   }
 }
 
 // Function for checking the constraints on the robot before moving - we can
 // decide to either move to closest possible or return fault
-bool robotArmControl::checkLimits(float rot, float left, float right) {
-  // limit #1: gear angles must always be positive
-  if ((rot || left) < 0 && right > 0) {
-    return 0;
+uint8_t robotArmControl::checkLimits(void) {
+  uint8_t jointsAllowedToMove = 0xFF;//0 = not allowed to move, 1 allowed to move. bit0 = base, bit1 = shoulder, bit2 = elbow
+
+ if(abs(this->angleBase) > (160.0 * GEARRATIO))
+  {
+    jointsAllowedToMove &= ~0x01;
   }
-  // limit #2: keep elbow gear behind shoulder gear at all times to avoid
-  // collision between gear and main arm. 2 deg motor angle in addition to
-  // homing angle should suffice
-  else if ((left - 2) >= right) {
-    return 0;
+
+  /********Shoulder hard limits**********/
+  if(this->angleShoulder < (-120.0 * GEARRATIO) && this->targetShoulderSpeed > 0)
+  {
+    jointsAllowedToMove &= ~0x02;  //not ok
   }
-  // limit #3: rotation can only go from 0 to 358 degree because of hard stop
-  else if (rot > 358 * GEARRATIO) {
-    return 0;
+  else if(this->angleShoulder > (-2.0 * GEARRATIO) && this->targetShoulderSpeed < 0)
+  {
+    jointsAllowedToMove &= ~0x02;  //not ok
   }
-  // limit #4: main gear (shoulder) must never go below 10 degrees from
-  // horizontal to avoid skewing the parallelograms of the robot
-  else if (right > 80) {
-    return 0;
-  } else {
-    return 1;
+
+  /***********Elbow hard limits*************/
+  if(this->angleElbow < (-90.0 * GEARRATIO) && this->targetElbowSpeed > 0)
+  {
+    jointsAllowedToMove &= ~0x04;  //not ok
   }
+  else if(this->angleElbow > (-2.0 * GEARRATIO) && this->targetElbowSpeed < 0)
+  {
+    jointsAllowedToMove &= ~0x04;  //not ok
+  }
+  /**************Elbow/shoulder dynamic limits**********************/
+  if(this->angleElbow - this->angleShoulder < (5.0 * GEARRATIO))
+  {
+    if(this->targetElbowSpeed < 0 && this->targetShoulderSpeed > 0)
+    {
+      //intentionally left blank 
+    }
+    else if(this->targetElbowSpeed < 0)
+    {
+      jointsAllowedToMove &= ~0x02; // shoulder not ok to move
+    }
+    else
+    {
+      jointsAllowedToMove &= ~0x04; // elbow not ok to move
+    }
+  }
+
+  if(this->sy == 0.0)// Due to rounding errors the y-axis can twitch even though not commanded to move
+  {
+    DEBUG_PRINTLN("MASTER STOPPED");
+    jointsAllowedToMove &= ~0x01;// so dont move if not commanded to
+  }
+  
+  return jointsAllowedToMove;
 }
 
 void robotArmControl::setPump(bool state) {
@@ -1081,7 +1093,7 @@ void robotArmControl::busRequestEvent(void) {
   uint8_t data;
 
   if (address == 0.0) {
-    value.f = stepper.angleMoved();
+    value.f = ptr->direction * stepper.angleMoved();
     // Send each byte of the float through the union
     I2CPORT.write(value.b, 4);
   } else if (address == 1.0) {
