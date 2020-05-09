@@ -280,12 +280,17 @@ void robotArmControl::run() {
         if(this->sx != 0.0 || this->sy != 0.0 || this->sz != 0.0 )
         {
           continous = 1;
-          float rot = atan2(this->y, this->x);
-          this->tx = this->x + (this->sx * 0.2) + ((cos(rot) * this->sy)*0.2);
-          this->ty = this->y + ((sin(rot) * this->sy)*0.2);
+
+          //angleToxyz(this->angleBase + (this->sy * 0.2), this->angleElbow, this->angleShoulder,x,y,z);
+
+          this->tx = this->x + (this->sx * 0.2);
+          this->ty = this->y;
           this->tz = this->z + (this->sz * 0.2);
           this->xyzToAngles(this->angleTargetBase, this->angleTargetElbow,
                      this->angleTargetShoulder, tx, ty, tz);
+
+          this->angleTargetBase = this->angleBase + (this->sy * 0.2);
+          
           jointsAllowedToMove = calcVelocityProfile();
           
           if(jointsAllowedToMove & 0x01)
@@ -426,14 +431,14 @@ uint8_t robotArmControl::calcVelocityProfile(void) {
   
   elbowDistance = this->angleTargetElbow - this->angleElbow;
   shoulderDistance = this->angleTargetShoulder - this->angleShoulder;
-
+/*
   DEBUG_PRINT("BaseDist: ");
   DEBUG_PRINTFLOAT(baseDistance,5);
   DEBUG_PRINT(" ElbowDist: ");
   DEBUG_PRINTFLOAT(elbowDistance,5);
   DEBUG_PRINT(" ShoulderDist: ");
   DEBUG_PRINTLNFLOAT(shoulderDistance,5);
-
+*/
   euclideanDistance =
       sqrt((baseDistance * baseDistance) + (elbowDistance * elbowDistance) +
            (shoulderDistance * shoulderDistance));
@@ -947,9 +952,13 @@ void robotArmControl::runContinously(uint8_t num, float speed) {
 uint8_t robotArmControl::checkLimits(void) {
   uint8_t jointsAllowedToMove = 0xFF;//0 = not allowed to move, 1 allowed to move. bit0 = base, bit1 = shoulder, bit2 = elbow
 
- if(abs(this->angleBase) > (160.0 * GEARRATIO))
+  if(this->angleBase < (-160.0 * GEARRATIO) && this->targetBaseSpeed < 0)
   {
-    jointsAllowedToMove &= ~0x01;
+    jointsAllowedToMove &= ~0x01;  //not ok
+  }
+  else if(this->angleBase > (160.0 * GEARRATIO) && this->targetBaseSpeed > 0)
+  {
+    jointsAllowedToMove &= ~0x01;  //not ok
   }
 
   /********Shoulder hard limits**********/
