@@ -25,7 +25,8 @@ public:
   robotArmControl();
 
   void begin(void);
-
+  void masterLoop();
+  void slaveLoop();
   /* Main control function, listening for gcode and reading commands when robot
    * is ready */
   void run(void);
@@ -48,7 +49,7 @@ public:
 
   void homeArm(void);
 
-  uint8_t checkLimits(void);
+  uint8_t checkLimits(bool correction = false);
 
   void setPump(bool state);
 
@@ -72,7 +73,7 @@ private:
   // I2C slave function for sending current angle position */
   static void busRequestEvent(void);
 
-  uint8_t calcVelocityProfile(void);
+  uint8_t calcVelocityProfile(float baseTarget, float elbowTarget, float shoulderTarget, bool correction = false);
 
   void calcVelocityProfileMovement(void);
 
@@ -85,9 +86,11 @@ private:
   bool isRecording = false;
   bool targetReached = true;
 
-  int8_t baseTargetReached = 0;
-  int8_t elbowTargetReached = 0;
-  int8_t shoulderTargetReached = 0;
+  int8_t baseTargetReached = 1;
+  int8_t elbowTargetReached = 1;
+  int8_t shoulderTargetReached = 1;
+
+  bool movementInProgress = 0;
 
   // Current angles
   float angleBase = 0.0;
