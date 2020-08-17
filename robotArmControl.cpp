@@ -149,7 +149,7 @@ void robotArmControl::homeArm() {
   }
   bus.writeCommand(SHOULDER, 'h', 0);
   //homeAxis(CCW);
-  stepper.moveToEnd(CCW, 35.0, 5); // Move to stall is detected
+  stepper.moveToEnd(CCW, 25.0, 5); // Move to stall is detected
   stepper.encoder.setHome();    // Zero encoder position
  
   while (this->bus.requestState(ELBOW) != rdy) {
@@ -231,9 +231,18 @@ void robotArmControl::masterLoop()
         else if(this->baseTargetReached == 1 && this->elbowTargetReached == 1 && this->shoulderTargetReached == 1 )
         {
           //DEBUG_PRINTLN("1");
-          this->targetReached = 1;
-          this->movementInProgress = 0;
-          comm.send("REACHED");
+          if(this->setServo(this->targetServo) == this->targetServo)
+          {
+            if(this->targetPumpState != this->currentPumpState)
+            {
+              this->setPump(targetPumpState);
+            }
+            
+            this->targetReached = 1;
+            this->movementInProgress = 0;
+            comm.send("REACHED");
+          }
+          
         }
         else if(this->movementInProgress == 1)
         {
@@ -391,6 +400,8 @@ void robotArmControl::masterLoop()
 
 void robotArmControl::slaveLoop() 
 {
+  int8_t stallSens = 0;
+  float homeSpeed = 25.0;
   while (1) 
   {
     cli();
@@ -401,10 +412,21 @@ void robotArmControl::slaveLoop()
     if (state == home) {
       stepper.stop(HARD);
       stepper.moveToAngle(stepper.encoder.getAngleMoved());
+      if(bus.addressNum == ELBOW)
+      {
+        stallSens = 5;
+        homeSpeed = 35.0;
+      }
+      else if(bus.addressNum == SHOULDER)
+      {
+        stallSens = 6;
+        homeSpeed = 25.0;
+      }
+      
       if (ptr->direction<0) {
-        stepper.moveToEnd(CCW, 35.0, 5); // Move to stall is detected
+        stepper.moveToEnd(CCW, homeSpeed, stallSens); // Move to stall is detected
       } else {
-        stepper.moveToEnd(CW, 35.0, 5); // Move to stall is detected
+        stepper.moveToEnd(CW, homeSpeed, stallSens); // Move to stall is detected
       }
       stepper.encoder.setHome(); // Zero encoder position
     } else if (state == stop) {
@@ -637,11 +659,12 @@ void robotArmControl::setServo() {
   OCR4A = servoSetting;
 }
 
-void robotArmControl::setServo(float servoVal) {
+float robotArmControl::setServo(float servoVal) {
     DEBUG_PRINT("Servo: ");
     DEBUG_PRINTLN(servoVal);
     this->currentServo = servoVal;
-    
+    this->setServo();
+    return this->filteredServo;
 }
 
 void robotArmControl::setXYZ() {

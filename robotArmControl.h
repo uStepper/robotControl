@@ -53,8 +53,6 @@ public:
 
   void setPump(bool state);
 
-  void setServo(uint8_t value);
-
   void sendXYZ(void);
 
   float direction = 1.0;
@@ -79,7 +77,7 @@ private:
 
   bool inRange( float value, float target, float limit );
 
-  void setServo(float servoVal);
+  float setServo(float servoVal);
 
   void setServo();
 
