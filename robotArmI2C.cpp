@@ -49,6 +49,16 @@ void robotArmI2C::setSpeed(uint8_t slave, float speed) {
   writeCommand(slave, 's', speed);
 }
 
+// Master function to set slave acceleration
+void robotArmI2C::setAcceleration(uint8_t slave, float acceleration) {
+  writeCommand(slave, 'i', acceleration);
+}
+
+// Master function to set slave brake mode
+void robotArmI2C::setBrakeMode(uint8_t slave, uint8_t brakeMode) {
+  writeCommand(slave, 'b', (float)brakeMode);
+}
+
 // Master function to make slave run Continously
 void robotArmI2C::runContinously(uint8_t slave, float speed) {
   writeCommand(slave, 'S', speed);

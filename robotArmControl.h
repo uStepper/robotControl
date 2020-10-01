@@ -37,6 +37,8 @@ public:
 
   void setMotorSpeed(uint8_t num, float speed);
 
+  void setMotorAcceleration(uint8_t num, float acceleration);
+
   void runContinously(uint8_t num, float speed);
 
   void setXYZ();
@@ -54,7 +56,7 @@ public:
   void setPump(bool state);
 
   void sendXYZ(void);
-
+  void setbrakeMode(uint8_t num, float brakeMode);
   float direction = 1.0;
   void checkConnOrientation(void);
 

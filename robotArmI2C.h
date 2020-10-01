@@ -19,6 +19,8 @@ public:
   state_t requestState(uint8_t slave);
   uint8_t requestMotorState(uint8_t slave);
   void setSpeed(uint8_t slave, float speed);
+  void setAcceleration(uint8_t slave, float acceleration);
+  void setBrakeMode(uint8_t slave, uint8_t brakeMode);
   void runContinously(uint8_t slave, float speed);
   void stopSlave(uint8_t slave);
 

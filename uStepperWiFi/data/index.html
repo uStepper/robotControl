@@ -250,19 +250,26 @@
 							
 							<div class="card-body">
 								<table class="table table-sm">
-									<tr>
-										<td>Max speed:</td>
-										<td>
-											<div class="input-group input-group-sm">
-												<input type="number" class="form-control" value="20" id="maxFeedrate" title="Maximum speed">
-												<div class="input-group-append">
-													<span class="input-group-text" id="basic-addon2">mm/s</span>
+									<thead>
+										<tr>
+											<th colspan="2"><span class="title">Movement</span></th>
+										</tr>
+									</thead>
+		
+									<tbody>									
+										<tr>
+											<td>Max speed:</td>
+											<td>
+												<div class="input-group input-group-sm">
+													<input type="number" class="form-control" value="20" id="maxFeedrate" title="Maximum speed">
+													<div class="input-group-append">
+														<span class="input-group-text" id="basic-addon2">mm/s</span>
+													</div>
 												</div>
-											</div>
-										</td>
-									</tr>
-								
-									<tr>
+											</td>
+										</tr>
+									
+										<tr>
 											<td>Min speed:</td>
 											<td>
 												<div class="input-group input-group-sm">
@@ -273,7 +280,30 @@
 												</div>
 											</td>
 										</tr>
-									<tr>
+										<tr>
+											<td>Acceleration:</td>
+											<td>
+												<div class="input-group input-group-sm">
+													<input type="number" class="form-control" value="100" id="acceleration" title="Acceleration">
+													<div class="input-group-append">
+														<span class="input-group-text" id="basic-addon2">mm/s<sup>2</sup></span>
+													</div>
+												</div>
+											</td>
+										</tr>
+										<tr>
+											<td>Brake method:</td>
+											<td>
+												<div class="input-group input-group-sm">
+													<select id="brake" class="custom-select">
+														<option value="free">Freewheel</option>
+														<option value="cool" selected=>Cool brake</option>
+														<option value="hard">Hard brake</option>
+													</select>
+												</div>
+											</td>
+										</tr>
+										<tr>
 											<td>Playback Speed:</td>
 											<td>
 												<div class="input-group input-group-sm">
@@ -283,31 +313,119 @@
 													</div>
 												</div>
 											</td>
-									</tr>
-
-									<tr>
-										<td>Servo minimum:</td>
-										<td>
-											<div class="input-group input-group-sm">
-												<input type="number" class="form-control" value="0" id="minServoValue" title="Minimum servo angle">
-												<div class="input-group-append">
-													<span class="input-group-text" id="basic-addon2">&#176</span>
+										</tr>
+									</tbody>
+									<thead>
+										<tr>
+											<th colspan="2"><span class="title">Servo</span></th>
+										</tr>
+									</thead>
+									
+									<tbody>
+										<tr>
+											<td>Servo minimum:</td>
+											<td>
+												<div class="input-group input-group-sm">
+													<input type="number" class="form-control" value="0" id="minServoValue" title="Minimum servo angle">
+													<div class="input-group-append">
+														<span class="input-group-text" id="basic-addon2">&#176</span>
+													</div>
 												</div>
-											</div>
-										</td>
-									</tr>
+											</td>
+										</tr>
 
-									<tr>
-										<td>Servo maximum:</td>
-										<td>
-											<div class="input-group input-group-sm">
-												<input type="number" class="form-control" value="180" id="maxServoValue" title="Maximum servo angle">
-												<div class="input-group-append">
-													<span class="input-group-text" id="basic-addon2">&#176</span>
+										<tr>
+											<td>Servo maximum:</td>
+											<td>
+												<div class="input-group input-group-sm">
+													<input type="number" class="form-control" value="180" id="maxServoValue" title="Maximum servo angle">
+													<div class="input-group-append">
+														<span class="input-group-text" id="basic-addon2">&#176</span>
+													</div>
 												</div>
-											</div>
-										</td>
-									</tr>
+											</td>
+										</tr>
+									</tbody>
+									<thead>
+										<tr>
+											<th colspan="2"><span class="title">Homing</span></th>
+										</tr>
+									</thead>
+		
+									<tbody>									
+										<tr>
+											<td>Base Homing speed:</td>
+											<td>
+												<div class="input-group input-group-sm">
+													<input type="number" class="form-control" value="25" id="HomingSpeedBase" title="Base homing speed">
+													<div class="input-group-append">
+														<span class="input-group-text" id="basic-addon2">mm/s</span>
+													</div>
+												</div>
+											</td>
+										</tr>
+										<tr>
+											<td>Elbow Homing speed:</td>
+											<td>
+												<div class="input-group input-group-sm">
+													<input type="number" class="form-control" value="35" id="HomingSpeedElbow" title="Elbow homing speed">
+													<div class="input-group-append">
+														<span class="input-group-text" id="basic-addon2">mm/s</span>
+													</div>
+												</div>
+											</td>
+										</tr>
+										<tr>
+											<td>Shoulder Homing speed:</td>
+											<td>
+												<div class="input-group input-group-sm">
+													<input type="number" class="form-control" value="25" id="HomingSpeedShoulder" title="Shoulder homing speed">
+													<div class="input-group-append">
+														<span class="input-group-text" id="basic-addon2">mm/s</span>
+													</div>
+												</div>
+											</td>
+										</tr>
+										<tr>
+											<td>Base Sensitivity:</td>
+											<td>
+												<div class="input-group input-group-sm">
+													<input type="number" class="form-control" value="5" id="sensitivityBase" title="Base sensitivity">
+													<div class="input-group-append">
+														<span class="input-group-text" id="basic-addon2">-63 to 64</span>
+													</div>
+												</div>
+											</td>
+										</tr>
+
+										
+									
+										<tr>
+											<td>Elbow Sensitivity:</td>
+											<td>
+												<div class="input-group input-group-sm">
+													<input type="number" class="form-control" value="5" id="sensitivityElbow" title="Elbow sensitivity">
+													<div class="input-group-append">
+														<span class="input-group-text" id="basic-addon2">-63 to 64</span>
+													</div>
+												</div>
+											</td>
+										</tr>
+
+										
+									
+										<tr>
+											<td>Shoulder Sensitivity:</td>
+											<td>
+												<div class="input-group input-group-sm">
+													<input type="number" class="form-control" value="6" id="sensitivityShoulder" title="Shoulder Sensitivity">
+													<div class="input-group-append">
+														<span class="input-group-text" id="basic-addon2">-63 to 64</span>
+													</div>
+												</div>
+											</td>
+										</tr>
+									</tbody>
 								</table>
 
 							</div>

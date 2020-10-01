@@ -118,6 +118,7 @@ void robotArmControl::begin() {
     DEBUG_PRINTLN("ELBOW NOT RDY ");
     delay(100);
     }
+     DEBUG_PRINTLN("-- I Am BASE --");
     while (this->bus.requestState(SHOULDER) != rdy) {
       DEBUG_PRINTLN("SHOULDER NOT RDY ");
       delay(100);
@@ -149,7 +150,7 @@ void robotArmControl::homeArm() {
   }
   bus.writeCommand(SHOULDER, 'h', 0);
   //homeAxis(CCW);
-  stepper.moveToEnd(CCW, 25.0, 5); // Move to stall is detected
+  stepper.moveToEnd(CCW, 25.0, 5, 30000); // Move to stall is detected
   stepper.encoder.setHome();    // Zero encoder position
  
   while (this->bus.requestState(ELBOW) != rdy) {
@@ -213,6 +214,7 @@ void robotArmControl::masterLoop()
       this->angleBase = stepper.encoder.getAngleMoved();
       this->angleElbow = this->bus.requestAngle(ELBOW);
       this->angleShoulder = this->bus.requestAngle(SHOULDER);
+
       angleToxyz(this->angleBase, this->angleElbow, this->angleShoulder,x,y,z);
       // Check if target is reached
       if(this->targetReached == false)
@@ -424,9 +426,9 @@ void robotArmControl::slaveLoop()
       }
       
       if (ptr->direction<0) {
-        stepper.moveToEnd(CCW, homeSpeed, stallSens); // Move to stall is detected
+        stepper.moveToEnd(CCW, homeSpeed, stallSens,30000 ); // Move to stall is detected
       } else {
-        stepper.moveToEnd(CW, homeSpeed, stallSens); // Move to stall is detected
+        stepper.moveToEnd(CW, homeSpeed, stallSens,30000 ); // Move to stall is detected
       }
       stepper.encoder.setHome(); // Zero encoder position
     } else if (state == stop) {
@@ -448,6 +450,20 @@ void robotArmControl::slaveLoop()
     } else if (state == setAcceleration) {
       stepper.setMaxAcceleration(currentCommandArgument.f);
       stepper.setMaxDeceleration(currentCommandArgument.f);
+    }
+    else if (state == setBrakeMode) {
+      if(currentCommandArgument.f == 0.0)
+      {
+        stepper.setBrakeMode(FREEWHEELBRAKE);
+      }
+      else if(currentCommandArgument.f == 1.0)
+      {
+        stepper.setBrakeMode(COOLBRAKE);
+      }
+      else if(currentCommandArgument.f == 2.0)
+      {
+        stepper.setBrakeMode(HARDBRAKE);
+      }
     }
   }
 }
@@ -793,12 +809,57 @@ void robotArmControl::execute(char *command) {
     
 
   else if (comm.check("M6"))
+  {  
     // PUMP OFF
     this->setPump(false);
+  }
 
   else if (comm.check("M9"))
+  {  
     //Send current position in xyz
     this->sendXYZ();
+  }
+
+  else if (comm.check("M14"))
+  {  
+    //Set brakemode to freewheel
+    this->setbrakeMode(BASE,0.0);
+    this->setbrakeMode(ELBOW,0.0);
+    this->setbrakeMode(SHOULDER,0.0);
+  }
+
+  else if (comm.check("M15"))
+  {  
+    //Set brakemode to coolbrake
+    this->setbrakeMode(BASE,1.0);
+    this->setbrakeMode(ELBOW,1.0);
+    this->setbrakeMode(SHOULDER,1.0);
+  }
+
+  else if (comm.check("M16"))
+  {  
+    //Set brakemode to hardbrake
+    this->setbrakeMode(BASE,2.0);
+    this->setbrakeMode(ELBOW,2.0);
+    this->setbrakeMode(SHOULDER,2.0);
+  }
+  else if (comm.check("M17"))
+  {
+    float acceleration;
+    if (!comm.value("A", &acceleration)) 
+    {
+      comm.send("INVALID acceleration");
+    } 
+    else {
+      this->setMotorAcceleration(BASE,FEEDRATETOANGULARFEEDRATE(acceleration));
+      this->setMotorAcceleration(ELBOW,FEEDRATETOANGULARFEEDRATE(acceleration));
+      this->setMotorAcceleration(SHOULDER,FEEDRATETOANGULARFEEDRATE(acceleration));
+    }
+    
+    DEBUG_PRINTLN("M17");
+  }
+  
+    
 
   else if (comm.check("G28"))
   {
@@ -975,6 +1036,40 @@ void robotArmControl::setMotorSpeed(uint8_t num, float speed) {
 }
 
 // Function is only used by master to control all three motors
+void robotArmControl::setMotorAcceleration(uint8_t num, float acceleration) {
+  DEBUG_PRINTLN(acceleration);
+  if (num == BASE) {
+    stepper.setMaxAcceleration(acceleration);
+    stepper.setMaxDeceleration(acceleration);
+  } else {
+
+    bus.setAcceleration(num, acceleration);
+  }
+}
+
+// Function is only used by master to control all three motors
+void robotArmControl::setbrakeMode(uint8_t num, float brakeMode) {
+
+  if (num == BASE) {
+    if(brakeMode == 0.0)
+    {
+      stepper.setBrakeMode(FREEWHEELBRAKE);
+    }
+    else if(brakeMode == 1.0)
+    {
+      stepper.setBrakeMode(COOLBRAKE);
+    }
+    else if(brakeMode == 2.0)
+    {
+      stepper.setBrakeMode(HARDBRAKE);
+    }
+  } else {
+
+    bus.setBrakeMode(num, brakeMode);
+  }
+}
+
+// Function is only used by master to control all three motors
 void robotArmControl::runContinously(uint8_t num, float speed) {
   float velocity = this->direction * speed;
 
@@ -1132,6 +1227,16 @@ void robotArmControl::busReceiveEvent(void) {
 
       nextCommandArgument = value;
       nextCommand = move;
+    } break;
+    case 'b': // setBrakeMode
+    {
+      value.b[0] = buf[1];
+      value.b[1] = buf[2];
+      value.b[2] = buf[3];
+      value.b[3] = buf[4];
+
+      nextCommandArgument = value;
+      nextCommand = setBrakeMode;
     } break;
     case 'q': // request some information. does not affect state
       value.b[0] = buf[1];

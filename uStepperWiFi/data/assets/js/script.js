@@ -47,7 +47,10 @@ var playBtn			= document.getElementById('play');
 var stopBtn			= document.getElementById('stop');
 var recordBtn		= document.getElementById('record');
 var recordLineBtn	= document.getElementById('recordLine');
-
+var accelerationInput 		= document.getElementById('acceleration');
+var brakeSelect = document.getElementById('brake'); 
+var baseSensitivityInput 		= document.getElementById('sensitivityBase');
+var homingSpeedInput = document.getElementById('HomingSpeedBase'); 
 
 var xDisplay		= document.getElementById('x-pos');
 var yDisplay		= document.getElementById('y-pos');
@@ -145,58 +148,24 @@ uploadFile.onchange = function(){
 	}
 };
 
-/* uploadBtn.onchange = function()
-{
-	// files that user has chosen
-	var all_files = this.files;
-	if(all_files.length == 0) {
-		alert('Error : No file selected');
-		return;
+// Add events for brake method select
+brakeSelect.onchange = function(event) {
+	var value = event.target.value;
+
+	switch( value ){
+		case "free":
+			sendCommand("M14");
+		break;
+
+		case "cool":
+			sendCommand("M15");
+		break;
+
+		case "hard":
+			sendCommand("M16");
+		break;
 	}
-
-	// first file selected by user
-	var file = all_files[0];
-	
-	// files types allowed
-	var allowed_types = [ 'text/plain' ];
-	if(allowed_types.indexOf(file.type) == -1) {
-		alert('Error : Incorrect file type');
-		return;
-	}
-
-	// Max 2 MB allowed
-	var max_size_allowed = 2*1024*1024
-	if(file.size > max_size_allowed) {
-		alert('Error : Exceeded size 2MB');
-		return;
-	}
-
-	// file validation is successfull
-	// we will now read the file
-	
-	var reader = new FileReader();
-
-	// file reading finished successfully
-	reader.addEventListener('load', function(e) {
-	    var text = e.target.result;
-		var http = new XMLHttpRequest();
-		// contents of the file
-		console.log(text);
-		http.open("POST","/fupload",true)
-		http.setRequestHeader("Content-type","text/plain");
-		http.send(text);
-    	http.onload = function() {
-        	//alert(http.responseText);
-    	}
-	});
-
-	// file reading failed
-	reader.addEventListener('error', function() {
-	    alert('Error : Failed to read file');
-	});
-	// read as text file
-	reader.readAsText(file);
-}*/
+};
 
 servoElement.oninput = function()
 {
@@ -207,6 +176,51 @@ servoElement.oninput = function()
 		{name: "S", value: angle.toFixed(0) },
 	];
 	sendCommand("M4", command);
+}
+
+baseSensitivityInput.oninput = function()
+{
+	var sensitivity = parseInt(baseSensitivityInput.value);
+
+	if(sensitivity < -63)
+	{
+		sensitivity = -63;
+		baseSensitivityInput.value = sensitivity;
+	}
+
+	if(sensitivity > 64)
+	{
+		sensitivity = 64;
+		baseSensitivityInput.value = sensitivity;
+	}
+
+	var command = [
+		{name: "S", value: sensitivity },
+	];
+	sendCommand("M18", command);
+}
+
+accelerationInput.oninput = function()
+{
+	console.log(accelerationInput.value);
+	var accel = parseFloat(accelerationInput.value).toFixed(1);
+
+	if(accel < 1.0)
+	{
+		accel = 1.0;
+		accelerationInput.value = accel;
+	}
+
+	if(accel > 10000.0)
+	{
+		accel = 10000.0;
+		accelerationInput.value = accel;
+	}
+	
+	var command = [
+		{name: "A", value: accel },
+	];
+	sendCommand("M17", command);
 }
 
 pumpBtn.onclick = function(){
