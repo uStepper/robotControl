@@ -64,6 +64,16 @@ void robotArmI2C::runContinously(uint8_t slave, float speed) {
   writeCommand(slave, 'S', speed);
 }
 
+// Master function to change slave homing speed
+void robotArmI2C::setHomingSpeed(uint8_t slave, float speed) {
+  writeCommand(slave, 'H', speed);
+}
+
+// Master function to change slave stall sense
+void robotArmI2C::setStallSense(uint8_t slave, float sense) {
+  writeCommand(slave, 'f', sense);
+}
+
 // Master function to stop slave
 void robotArmI2C::stopSlave(uint8_t slave) { writeCommand(slave, 'B', 0.0); }
 

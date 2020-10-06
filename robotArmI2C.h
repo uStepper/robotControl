@@ -23,6 +23,8 @@ public:
   void setBrakeMode(uint8_t slave, uint8_t brakeMode);
   void runContinously(uint8_t slave, float speed);
   void stopSlave(uint8_t slave);
+  void setHomingSpeed(uint8_t slave, float speed);
+  void setStallSense(uint8_t slave, float sense);
 
 private:
   // I2C addresses used

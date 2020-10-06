@@ -39,6 +39,10 @@ public:
 
   void setMotorAcceleration(uint8_t num, float acceleration);
 
+  void setMotorHomingSpeed(uint8_t num, float speed);
+
+  void setMotorStallSense(uint8_t num, float sense);
+
   void runContinously(uint8_t num, float speed);
 
   void setXYZ();
@@ -135,6 +139,9 @@ private:
 
   bool valveOn = 0;
   int32_t valveOnTime;
+
+  int8_t stallSense;
+  float homeSpeed;
 };
 
 #endif

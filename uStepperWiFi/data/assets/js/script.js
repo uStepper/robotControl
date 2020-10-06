@@ -49,8 +49,14 @@ var recordBtn		= document.getElementById('record');
 var recordLineBtn	= document.getElementById('recordLine');
 var accelerationInput 		= document.getElementById('acceleration');
 var brakeSelect = document.getElementById('brake'); 
+
 var baseSensitivityInput 		= document.getElementById('sensitivityBase');
-var homingSpeedInput = document.getElementById('HomingSpeedBase'); 
+var elbowSensitivityInput 		= document.getElementById('sensitivityElbow');
+var shoulderSensitivityInput 		= document.getElementById('sensitivityShoulder');
+
+var baseHomingSpeedInput = document.getElementById('HomingSpeedBase'); 
+var elbowHomingSpeedInput = document.getElementById('HomingSpeedElbow'); 
+var shoulderHomingSpeedInput = document.getElementById('HomingSpeedShoulder'); 
 
 var xDisplay		= document.getElementById('x-pos');
 var yDisplay		= document.getElementById('y-pos');
@@ -148,6 +154,70 @@ uploadFile.onchange = function(){
 	}
 };
 
+baseHomingSpeedInput.onchange = function(){
+	var homingSpeed = parseInt(baseHomingSpeedInput.value);
+
+	if(homingSpeed < 10)
+	{
+		homingSpeed = 10;
+		baseHomingSpeedInput.value = homingSpeed;
+	}
+
+	if(homingSpeed > 100)
+	{
+		homingSpeed = 100;
+		baseHomingSpeedInput.value = homingSpeed;
+	}
+
+	var command = [
+		{name: "S", value: homingSpeed },
+	];
+	sendCommand("M21", command);
+}
+
+elbowHomingSpeedInput.onchange = function(){
+	var homingSpeed = parseInt(elbowHomingSpeedInput.value);
+
+	if(homingSpeed < 10)
+	{
+		homingSpeed = 10;
+		elbowHomingSpeedInput.value = homingSpeed;
+	}
+
+	if(homingSpeed > 100)
+	{
+		homingSpeed = 100;
+		elbowHomingSpeedInput.value = homingSpeed;
+	}
+
+	var command = [
+		{name: "S", value: homingSpeed },
+	];
+	sendCommand("M22", command);
+}
+
+shoulderHomingSpeedInput.onchange = function(){
+	var homingSpeed = parseInt(shoulderHomingSpeedInput.value);
+
+	if(homingSpeed < 10)
+	{
+		homingSpeed = 10;
+		shoulderHomingSpeedInput.value = homingSpeed;
+	}
+
+	if(homingSpeed > 100)
+	{
+		homingSpeed = 100;
+		shoulderHomingSpeedInput.value = homingSpeed;
+	}
+
+	var command = [
+		{name: "S", value: homingSpeed },
+	];
+	sendCommand("M23", command);
+}
+
+
 // Add events for brake method select
 brakeSelect.onchange = function(event) {
 	var value = event.target.value;
@@ -198,6 +268,50 @@ baseSensitivityInput.oninput = function()
 		{name: "S", value: sensitivity },
 	];
 	sendCommand("M18", command);
+}
+
+elbowSensitivityInput.oninput = function()
+{
+	var sensitivity = parseInt(elbowSensitivityInput.value);
+
+	if(sensitivity < -63)
+	{
+		sensitivity = -63;
+		elbowSensitivityInput.value = sensitivity;
+	}
+
+	if(sensitivity > 64)
+	{
+		sensitivity = 64;
+		elbowSensitivityInput.value = sensitivity;
+	}
+
+	var command = [
+		{name: "S", value: sensitivity },
+	];
+	sendCommand("M19", command);
+}
+
+shoulderSensitivityInput.oninput = function()
+{
+	var sensitivity = parseInt(shoulderSensitivityInput.value);
+
+	if(sensitivity < -63)
+	{
+		sensitivity = -63;
+		shoulderSensitivityInput.value = sensitivity;
+	}
+
+	if(sensitivity > 64)
+	{
+		sensitivity = 64;
+		shoulderSensitivityInput.value = sensitivity;
+	}
+
+	var command = [
+		{name: "S", value: sensitivity },
+	];
+	sendCommand("M20", command);
 }
 
 accelerationInput.oninput = function()

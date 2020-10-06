@@ -64,6 +64,8 @@ void robotArmControl::begin() {
       this->direction = 1.0;
       this->checkConnOrientation();
       stepper.setHoldCurrent(40);
+      this->stallSense = 6;
+      this->homeSpeed = 25.0;
     }
 
     if (bus.addressNum == ELBOW) {
@@ -74,6 +76,8 @@ void robotArmControl::begin() {
       delay(2000);
       stepper.setHoldCurrent(40);
       this->checkConnOrientation();
+      this->stallSense = 5;
+      this->homeSpeed = 35.0;
     }
   }
 
@@ -94,6 +98,9 @@ void robotArmControl::begin() {
     TCCR4B |= (1 << 1); //Enable clock at prescaler 8. 16MHz/8 = 2MHz/40000 = 50Hz Servo Pulse frequency
     this->checkConnOrientation();
     stepper.setHoldCurrent(40);
+
+    this->stallSense = 5;
+    this->homeSpeed = 25.0;
 
     supplyVoltage = (float)analogRead(A2);
     supplyVoltage *= 0.04882813;   //(VRef/1024) * 10   -   10k in series with 1k = 1/10th divider
@@ -150,7 +157,7 @@ void robotArmControl::homeArm() {
   }
   bus.writeCommand(SHOULDER, 'h', 0);
   //homeAxis(CCW);
-  stepper.moveToEnd(CCW, 25.0, 5, 30000); // Move to stall is detected
+  stepper.moveToEnd(CCW, this->homeSpeed, this->stallSense, 15000); // Move to stall is detected
   stepper.encoder.setHome();    // Zero encoder position
  
   while (this->bus.requestState(ELBOW) != rdy) {
@@ -191,7 +198,7 @@ bool robotArmControl::inRange( float value, float target, float limit ){
 void robotArmControl::masterLoop() 
 {
   uint32_t ms = millis();
-  bool continous = 0;
+  bool continous = 1;
   uint8_t jointsAllowedToMove;
   float errorBase = 0.0, errorElbow = 0.0, errorShoulder = 0.0, errorDistance;
   uint8_t correctErrors = 0;
@@ -259,10 +266,10 @@ void robotArmControl::masterLoop()
             this->shoulderTargetReached = 1;
           }
         }
-        
       }
       else if(this->sx != 0.0 || this->sy != 0.0 || this->sz != 0.0 )
       {
+        continous = 1;
         this->tx = this->x + (this->sx * 0.2);
         this->ty = this->y;
         this->tz = this->z + (this->sz * 0.2);
@@ -279,11 +286,13 @@ void robotArmControl::masterLoop()
       }
       else
       {
-        //DEBUG_PRINTLN("ALL STOPPED");
-        continous = 0;
-        stepper.stop(HARD);
-        this->bus.stopSlave(ELBOW);
-        this->bus.stopSlave(SHOULDER);
+        if(continous)
+        {
+          continous = 0;
+          this->bus.stopSlave(ELBOW);
+          stepper.stop(HARD);
+          this->bus.stopSlave(SHOULDER);
+        }
       }
       
       /*else if(continous == 1)
@@ -402,8 +411,6 @@ void robotArmControl::masterLoop()
 
 void robotArmControl::slaveLoop() 
 {
-  int8_t stallSens = 0;
-  float homeSpeed = 25.0;
   while (1) 
   {
     cli();
@@ -414,21 +421,11 @@ void robotArmControl::slaveLoop()
     if (state == home) {
       stepper.stop(HARD);
       stepper.moveToAngle(stepper.encoder.getAngleMoved());
-      if(bus.addressNum == ELBOW)
-      {
-        stallSens = 5;
-        homeSpeed = 35.0;
-      }
-      else if(bus.addressNum == SHOULDER)
-      {
-        stallSens = 6;
-        homeSpeed = 25.0;
-      }
       
       if (ptr->direction<0) {
-        stepper.moveToEnd(CCW, homeSpeed, stallSens,30000 ); // Move to stall is detected
+        stepper.moveToEnd(CCW, this->homeSpeed, this->stallSense,15000 ); // Move to stall is detected
       } else {
-        stepper.moveToEnd(CW, homeSpeed, stallSens,30000 ); // Move to stall is detected
+        stepper.moveToEnd(CW, this->homeSpeed, this->stallSense,15000 ); // Move to stall is detected
       }
       stepper.encoder.setHome(); // Zero encoder position
     } else if (state == stop) {
@@ -464,6 +461,12 @@ void robotArmControl::slaveLoop()
       {
         stepper.setBrakeMode(HARDBRAKE);
       }
+    }
+    else if (state == setHomeSpeed) {
+      this->homeSpeed = currentCommandArgument.f;
+    }
+    else if (state == setStallSense) {
+      this->stallSense = currentCommandArgument.f;
     }
   }
 }
@@ -858,6 +861,85 @@ void robotArmControl::execute(char *command) {
     
     DEBUG_PRINTLN("M17");
   }
+  else if (comm.check("M18"))
+  {
+    float sense;
+    if (!comm.value("S", &sense)) 
+    {
+      comm.send("INVALID sense");
+    } 
+    else {
+      this->setMotorStallSense(BASE,sense);
+    }
+    
+    DEBUG_PRINTLN("M18");
+  }
+  else if (comm.check("M19"))
+  {
+    float sense;
+    if (!comm.value("S", &sense)) 
+    {
+      comm.send("INVALID sense");
+    } 
+    else {
+      this->setMotorStallSense(ELBOW,sense);
+    }
+    
+    DEBUG_PRINTLN("M19");
+  }
+  else if (comm.check("M20"))
+  {
+    float sense;
+    if (!comm.value("S", &sense)) 
+    {
+      comm.send("INVALID sense");
+    } 
+    else {
+      this->setMotorStallSense(SHOULDER,sense);
+    }
+    
+    DEBUG_PRINTLN("M20");
+  }
+  else if (comm.check("M21"))
+  {
+    float speed;
+    DEBUG_PRINTLN("M21");
+    if (!comm.value("S", &speed)) 
+    {
+      comm.send("INVALID speed");
+    } 
+    else {
+      this->setMotorHomingSpeed(BASE,speed);
+    }
+    
+    DEBUG_PRINTLN("M21");
+  }
+  else if (comm.check("M22"))
+  {
+    float speed;
+    if (!comm.value("S", &speed)) 
+    {
+      comm.send("INVALID speed");
+    } 
+    else {
+      this->setMotorHomingSpeed(ELBOW,speed);
+    }
+    
+    DEBUG_PRINTLN("M22");
+  }
+  else if (comm.check("M23"))
+  {
+    float speed;
+    if (!comm.value("S", &speed)) 
+    {
+      comm.send("INVALID speed");
+    } 
+    else {
+      this->setMotorHomingSpeed(SHOULDER,speed);
+    }
+    
+    DEBUG_PRINTLN("M23");
+  }
   
     
 
@@ -1032,6 +1114,24 @@ void robotArmControl::setMotorSpeed(uint8_t num, float speed) {
   } else {
 
     bus.setSpeed(num, speed);
+  }
+}
+
+void robotArmControl::setMotorHomingSpeed(uint8_t num, float speed)
+{
+  if (num == BASE) {
+    this->homeSpeed = speed;
+  } else {
+    bus.setHomingSpeed(num, speed);
+  }
+}
+
+void robotArmControl::setMotorStallSense(uint8_t num, float sense)
+{
+  if (num == BASE) {
+    this->stallSense = (int8_t)sense;
+  } else {
+    bus.setStallSense(num, sense);
   }
 }
 
@@ -1237,6 +1337,26 @@ void robotArmControl::busReceiveEvent(void) {
 
       nextCommandArgument = value;
       nextCommand = setBrakeMode;
+    } break;
+    case 'H': // setHomeSpeed
+    {
+      value.b[0] = buf[1];
+      value.b[1] = buf[2];
+      value.b[2] = buf[3];
+      value.b[3] = buf[4];
+
+      nextCommandArgument = value;
+      nextCommand = setHomeSpeed;
+    } break;
+    case 'f': // setSensitivity
+    {
+      value.b[0] = buf[1];
+      value.b[1] = buf[2];
+      value.b[2] = buf[3];
+      value.b[3] = buf[4];
+
+      nextCommandArgument = value;
+      nextCommand = setStallSense;
     } break;
     case 'q': // request some information. does not affect state
       value.b[0] = buf[1];
