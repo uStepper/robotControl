@@ -700,8 +700,8 @@ void robotArmControl::execute(char *command) {
     return;
   }
 
-  //DEBUG_PRINT("Got command: ");
-  //DEBUG_PRINTLN(command);
+  DEBUG_PRINT("Got command: ");
+  DEBUG_PRINTLN(command);
 
   // Check for each valid command
 
