@@ -537,7 +537,12 @@ function joystickControl(){
 	}
 
 	feedrateX *= maxFeedrate;
+	
 	feedrateY *= maxFeedrate;
+	if(pos.x < 0.0)
+	{
+		feedrateY *= -1.0;
+	}
 	feedrateZ *= maxFeedrate;
 
 	var command = [
@@ -581,7 +586,7 @@ function initWebSocket()
 
 function sendCommand( command, param = [] ){
 	
-	var gcode = command;
+	var gcode = command + " ";
 
 	if( param.length > 0 ){
 		var parameters = param.map(e => e.name + e.value ).join(' ');
