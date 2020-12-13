@@ -1262,7 +1262,7 @@ void robotArmControl::setPump(bool state) {
     PORTD &= ~(1 << 2);
     DDRD |= (1 << 3);
     this->valveOn = 1;
-    this->valveOnTime = millis() + 1000;
+    this->valveOnTime = millis() + 5000;
   }
   this->currentPumpState = state;
 }
