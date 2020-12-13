@@ -64,8 +64,8 @@ void robotArmControl::begin() {
       this->direction = 1.0;
       this->checkConnOrientation();
       stepper.setHoldCurrent(40);
-      this->stallSense = 6;
-      this->homeSpeed = 25.0;
+      this->stallSense = 2;
+      this->homeSpeed = 35.0;
     }
 
     if (bus.addressNum == ELBOW) {
@@ -76,7 +76,7 @@ void robotArmControl::begin() {
       delay(2000);
       stepper.setHoldCurrent(40);
       this->checkConnOrientation();
-      this->stallSense = 5;
+      this->stallSense = 2;
       this->homeSpeed = 35.0;
     }
   }
@@ -99,7 +99,7 @@ void robotArmControl::begin() {
     this->checkConnOrientation();
     stepper.setHoldCurrent(40);
 
-    this->stallSense = 5;
+    this->stallSense = 2;
     this->homeSpeed = 25.0;
 
     supplyVoltage = (float)analogRead(A2);

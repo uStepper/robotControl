@@ -58,6 +58,9 @@ var baseHomingSpeedInput = document.getElementById('HomingSpeedBase');
 var elbowHomingSpeedInput = document.getElementById('HomingSpeedElbow'); 
 var shoulderHomingSpeedInput = document.getElementById('HomingSpeedShoulder'); 
 
+var maxFeedrate = document.getElementById('maxFeedrate');
+var minFeedrate = document.getElementById('minFeedrate');
+
 var xDisplay		= document.getElementById('x-pos');
 var yDisplay		= document.getElementById('y-pos');
 var zDisplay		= document.getElementById('z-pos');
@@ -173,6 +176,30 @@ baseHomingSpeedInput.onchange = function(){
 		{name: "S", value: homingSpeed },
 	];
 	sendCommand("M21", command);
+}
+
+maxFeedrate.onchange = function(){
+
+	if(parseInt(maxFeedrate.value) > 1000)
+	{
+		maxFeedrate.value = 1000;
+	}
+	else if(parseInt(maxFeedrate.value) < parseInt(minFeedrate.value))
+	{
+		maxFeedrate.value = parseInt(minFeedrate.value);
+	}
+}
+
+minFeedrate.onchange = function(){
+
+	if(parseInt(minFeedrate.value) < 10.0)
+	{
+		minFeedrate.value = 10.0;
+	}
+	else if(parseInt(minFeedrate.value) > parseInt(maxFeedrate.value))
+	{
+		minFeedrate.value = parseInt(maxFeedrate.value);
+	}
 }
 
 elbowHomingSpeedInput.onchange = function(){
@@ -341,12 +368,12 @@ pumpBtn.onclick = function(){
 
 	if(pumpState ){
 		sendCommand( "M6" );	//turn off pump
-		pumpBtn.innerHTML = "VACUUM ON";
+		pumpBtn.innerHTML = "Vacuum on";
 	}
 	else
 	{
 		sendCommand( "M5" );	//turn on pump
-		pumpBtn.innerHTML = "VACUUM OFF";
+		pumpBtn.innerHTML = "Vacuum off";
 		
 	}
 	pumpState = !pumpState;
@@ -473,32 +500,38 @@ var websocketInterval = function() {
 }
 
 function joystickControl(){
-	var maxFeedrate = document.getElementById('maxFeedrate').value;
-	var minFeedrate = document.getElementById('minFeedrate').value;
+	
 	var feedrateX = 0;
 	var feedrateY = 0;
 	var feedrateZ = 0;
+
+	joystickMinValue = 10.0;
+	joystickMaxValue = 100.0;
+	joystickActiveValueSpan = joystickMaxValue - joystickMinValue;		//only values between 100 and 10 are considered. values below 10 are set to 0, to make it easier to control
+	feedrateSpan = parseFloat(maxFeedrate.value - minFeedrate.value);
+
+	scaleFactor = feedrateSpan/joystickActiveValueSpan;
 
 	if(xyjoystick.isActive())
 	{
 		var xy = xyjoystick.getPosition();
 		xyJoystickActive = true;
 		
-		if(Math.abs(xy.y) < 10)
+		if(Math.abs(xy.y) < joystickMinValue)
 		{
 			feedrateY = 0.0;
 		}
 		else
 		{
-			feedrateY = xy.y/100;
+			feedrateY = (xy.y/Math.abs(xy.y))*(parseFloat(minFeedrate.value) + (xy.y - joystickMinValue)*scaleFactor);
 		}
-		if(Math.abs(xy.x) < 10)
+		if(Math.abs(xy.x) < joystickMinValue)
 		{
 			feedrateX = 0.0;
 		}
 		else
 		{
-			feedrateX = xy.x/100;
+			feedrateX = (xy.x/Math.abs(xy.x))*(parseFloat(minFeedrate.value) + (xy.x - joystickMinValue)*scaleFactor);
 		}
 	}
 	else
@@ -512,7 +545,15 @@ function joystickControl(){
 	{
 		zJoystickActive = true;
 		var z = zjoystick.getPosition();
-		feedrateZ = z.y/100;
+
+		if(Math.abs(z.y) < joystickMinValue)
+		{
+			feedrateZ = 0.0;
+		}
+		else
+		{
+			feedrateZ = (z.y/Math.abs(z.y))*(parseFloat(minFeedrate.value) + (z.y - joystickMinValue)*scaleFactor);
+		}
 	}
 	else
 	{
@@ -535,15 +576,10 @@ function joystickControl(){
 		//sendCommand( "M10", lastG1Command);
 		return;
 	}
-
-	feedrateX *= maxFeedrate;
-	
-	feedrateY *= maxFeedrate;
 	if(pos.x < 0.0)
 	{
 		feedrateY *= -1.0;
 	}
-	feedrateZ *= maxFeedrate;
 
 	var command = [
 		{name: "Y", value: feedrateX.toFixed(1) },
