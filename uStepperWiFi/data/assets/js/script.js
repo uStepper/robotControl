@@ -41,12 +41,25 @@ var logElement 		= document.getElementById("log");
 var servoElement 	= document.getElementById('servo')
 var servoMin 		= document.getElementById('minServoValue');
 var servoMax 		= document.getElementById('maxServoValue');
+var playBackSpeed	= document.getElementById('playBackSpeed');
 var pauseBtn		= document.getElementById('pause');
 var playBtn			= document.getElementById('play');
 var stopBtn			= document.getElementById('stop');
 var recordBtn		= document.getElementById('record');
 var recordLineBtn	= document.getElementById('recordLine');
+var accelerationInput 		= document.getElementById('acceleration');
+var brakeSelect = document.getElementById('brake'); 
 
+var baseSensitivityInput 		= document.getElementById('sensitivityBase');
+var elbowSensitivityInput 		= document.getElementById('sensitivityElbow');
+var shoulderSensitivityInput 		= document.getElementById('sensitivityShoulder');
+
+var baseHomingSpeedInput = document.getElementById('HomingSpeedBase'); 
+var elbowHomingSpeedInput = document.getElementById('HomingSpeedElbow'); 
+var shoulderHomingSpeedInput = document.getElementById('HomingSpeedShoulder'); 
+
+var maxFeedrate = document.getElementById('maxFeedrate');
+var minFeedrate = document.getElementById('minFeedrate');
 
 var xDisplay		= document.getElementById('x-pos');
 var yDisplay		= document.getElementById('y-pos');
@@ -144,58 +157,112 @@ uploadFile.onchange = function(){
 	}
 };
 
-/* uploadBtn.onchange = function()
-{
-	// files that user has chosen
-	var all_files = this.files;
-	if(all_files.length == 0) {
-		alert('Error : No file selected');
-		return;
+baseHomingSpeedInput.onchange = function(){
+	var homingSpeed = parseInt(baseHomingSpeedInput.value);
+
+	if(homingSpeed < 10)
+	{
+		homingSpeed = 10;
+		baseHomingSpeedInput.value = homingSpeed;
 	}
 
-	// first file selected by user
-	var file = all_files[0];
-	
-	// files types allowed
-	var allowed_types = [ 'text/plain' ];
-	if(allowed_types.indexOf(file.type) == -1) {
-		alert('Error : Incorrect file type');
-		return;
+	if(homingSpeed > 100)
+	{
+		homingSpeed = 100;
+		baseHomingSpeedInput.value = homingSpeed;
 	}
 
-	// Max 2 MB allowed
-	var max_size_allowed = 2*1024*1024
-	if(file.size > max_size_allowed) {
-		alert('Error : Exceeded size 2MB');
-		return;
+	var command = [
+		{name: "S", value: homingSpeed },
+	];
+	sendCommand("M21", command);
+}
+
+maxFeedrate.onchange = function(){
+
+	if(parseInt(maxFeedrate.value) > 1000)
+	{
+		maxFeedrate.value = 1000;
+	}
+	else if(parseInt(maxFeedrate.value) < parseInt(minFeedrate.value))
+	{
+		maxFeedrate.value = parseInt(minFeedrate.value);
+	}
+}
+
+minFeedrate.onchange = function(){
+
+	if(parseInt(minFeedrate.value) < 10.0)
+	{
+		minFeedrate.value = 10.0;
+	}
+	else if(parseInt(minFeedrate.value) > parseInt(maxFeedrate.value))
+	{
+		minFeedrate.value = parseInt(maxFeedrate.value);
+	}
+}
+
+elbowHomingSpeedInput.onchange = function(){
+	var homingSpeed = parseInt(elbowHomingSpeedInput.value);
+
+	if(homingSpeed < 10)
+	{
+		homingSpeed = 10;
+		elbowHomingSpeedInput.value = homingSpeed;
 	}
 
-	// file validation is successfull
-	// we will now read the file
-	
-	var reader = new FileReader();
+	if(homingSpeed > 100)
+	{
+		homingSpeed = 100;
+		elbowHomingSpeedInput.value = homingSpeed;
+	}
 
-	// file reading finished successfully
-	reader.addEventListener('load', function(e) {
-	    var text = e.target.result;
-		var http = new XMLHttpRequest();
-		// contents of the file
-		console.log(text);
-		http.open("POST","/fupload",true)
-		http.setRequestHeader("Content-type","text/plain");
-		http.send(text);
-    	http.onload = function() {
-        	//alert(http.responseText);
-    	}
-	});
+	var command = [
+		{name: "S", value: homingSpeed },
+	];
+	sendCommand("M22", command);
+}
 
-	// file reading failed
-	reader.addEventListener('error', function() {
-	    alert('Error : Failed to read file');
-	});
-	// read as text file
-	reader.readAsText(file);
-}*/
+shoulderHomingSpeedInput.onchange = function(){
+	var homingSpeed = parseInt(shoulderHomingSpeedInput.value);
+
+	if(homingSpeed < 10)
+	{
+		homingSpeed = 10;
+		shoulderHomingSpeedInput.value = homingSpeed;
+	}
+
+	if(homingSpeed > 100)
+	{
+		homingSpeed = 100;
+		shoulderHomingSpeedInput.value = homingSpeed;
+	}
+
+	var command = [
+		{name: "S", value: homingSpeed },
+	];
+	sendCommand("M23", command);
+}
+
+
+// Add events for brake method select
+brakeSelect.onchange = function(event) {
+	var value = event.target.value;
+
+	switch( value ){
+		case "free":
+			sendCommand("M14");
+		break;
+
+		case "cool":
+			sendCommand("M15");
+		break;
+
+		case "hard":
+			sendCommand("M16");
+		break;
+	}
+};
 
 servoElement.oninput = function()
 {
@@ -208,16 +275,105 @@ servoElement.oninput = function()
 	sendCommand("M4", command);
 }
 
+baseSensitivityInput.oninput = function()
+{
+	var sensitivity = parseInt(baseSensitivityInput.value);
+
+	if(sensitivity < -63)
+	{
+		sensitivity = -63;
+		baseSensitivityInput.value = sensitivity;
+	}
+
+	if(sensitivity > 64)
+	{
+		sensitivity = 64;
+		baseSensitivityInput.value = sensitivity;
+	}
+
+	var command = [
+		{name: "S", value: sensitivity },
+	];
+	sendCommand("M18", command);
+}
+
+elbowSensitivityInput.oninput = function()
+{
+	var sensitivity = parseInt(elbowSensitivityInput.value);
+
+	if(sensitivity < -63)
+	{
+		sensitivity = -63;
+		elbowSensitivityInput.value = sensitivity;
+	}
+
+	if(sensitivity > 64)
+	{
+		sensitivity = 64;
+		elbowSensitivityInput.value = sensitivity;
+	}
+
+	var command = [
+		{name: "S", value: sensitivity },
+	];
+	sendCommand("M19", command);
+}
+
+shoulderSensitivityInput.oninput = function()
+{
+	var sensitivity = parseInt(shoulderSensitivityInput.value);
+
+	if(sensitivity < -63)
+	{
+		sensitivity = -63;
+		shoulderSensitivityInput.value = sensitivity;
+	}
+
+	if(sensitivity > 64)
+	{
+		sensitivity = 64;
+		shoulderSensitivityInput.value = sensitivity;
+	}
+
+	var command = [
+		{name: "S", value: sensitivity },
+	];
+	sendCommand("M20", command);
+}
+
+accelerationInput.oninput = function()
+{
+	console.log(accelerationInput.value);
+	var accel = parseFloat(accelerationInput.value).toFixed(1);
+
+	if(accel < 1.0)
+	{
+		accel = 1.0;
+		accelerationInput.value = accel;
+	}
+
+	if(accel > 10000.0)
+	{
+		accel = 10000.0;
+		accelerationInput.value = accel;
+	}
+	
+	var command = [
+		{name: "A", value: accel },
+	];
+	sendCommand("M17", command);
+}
+
 pumpBtn.onclick = function(){
 
 	if(pumpState ){
 		sendCommand( "M6" );	//turn off pump
-		pumpBtn.innerHTML = "VACUUM ON";
+		pumpBtn.innerHTML = "Vacuum on";
 	}
 	else
 	{
 		sendCommand( "M5" );	//turn on pump
-		pumpBtn.innerHTML = "VACUUM OFF";
+		pumpBtn.innerHTML = "Vacuum off";
 		
 	}
 	pumpState = !pumpState;
@@ -225,7 +381,10 @@ pumpBtn.onclick = function(){
 };
 
 playBtn.onclick  = function(){
-	sendCommand("M11");
+	var command = [
+		{name: "F", value: parseInt(playBackSpeed.value,10) },
+	];
+	sendCommand("M11",command);
 }
 
 pauseBtn.onclick  = function(){
@@ -341,32 +500,38 @@ var websocketInterval = function() {
 }
 
 function joystickControl(){
-	var maxFeedrate = document.getElementById('maxFeedrate').value;
-	var minFeedrate = document.getElementById('minFeedrate').value;
+	
 	var feedrateX = 0;
 	var feedrateY = 0;
 	var feedrateZ = 0;
+
+	joystickMinValue = 10.0;
+	joystickMaxValue = 100.0;
+	joystickActiveValueSpan = joystickMaxValue - joystickMinValue;		//only values between 100 and 10 are considered. values below 10 are set to 0, to make it easier to control
+	feedrateSpan = parseFloat(maxFeedrate.value - minFeedrate.value);
+
+	scaleFactor = feedrateSpan/joystickActiveValueSpan;
 
 	if(xyjoystick.isActive())
 	{
 		var xy = xyjoystick.getPosition();
 		xyJoystickActive = true;
 		
-		if(Math.abs(xy.y) < 10)
+		if(Math.abs(xy.y) < joystickMinValue)
 		{
 			feedrateY = 0.0;
 		}
 		else
 		{
-			feedrateY = xy.y/100;
+			feedrateY = (xy.y/Math.abs(xy.y))*(parseFloat(minFeedrate.value) + (xy.y - joystickMinValue)*scaleFactor);
 		}
-		if(Math.abs(xy.x) < 10)
+		if(Math.abs(xy.x) < joystickMinValue)
 		{
 			feedrateX = 0.0;
 		}
 		else
 		{
-			feedrateX = xy.x/100;
+			feedrateX = (xy.x/Math.abs(xy.x))*(parseFloat(minFeedrate.value) + (xy.x - joystickMinValue)*scaleFactor);
 		}
 	}
 	else
@@ -380,7 +545,15 @@ function joystickControl(){
 	{
 		zJoystickActive = true;
 		var z = zjoystick.getPosition();
-		feedrateZ = z.y/100;
+
+		if(Math.abs(z.y) < joystickMinValue)
+		{
+			feedrateZ = 0.0;
+		}
+		else
+		{
+			feedrateZ = (z.y/Math.abs(z.y))*(parseFloat(minFeedrate.value) + (z.y - joystickMinValue)*scaleFactor);
+		}
 	}
 	else
 	{
@@ -403,15 +576,15 @@ function joystickControl(){
 		//sendCommand( "M10", lastG1Command);
 		return;
 	}
-
-	feedrateX *= maxFeedrate;
-	feedrateY *= maxFeedrate;
-	feedrateZ *= maxFeedrate;
+	if(pos.x < 0.0)
+	{
+		feedrateY *= -1.0;
+	}
 
 	var command = [
-		{name: "Y", value: -feedrateX.toFixed(1) },
-		{name: "X", value: -feedrateY.toFixed(1) },
-		{name: "Z", value: -feedrateZ.toFixed(1) },
+		{name: "Y", value: feedrateX.toFixed(1) },
+		{name: "X", value: feedrateY.toFixed(1) },
+		{name: "Z", value: feedrateZ.toFixed(1) },
 	];
 
 	if(JSON.stringify(command) != JSON.stringify(lastG1Command))
@@ -449,7 +622,7 @@ function initWebSocket()
 
 function sendCommand( command, param = [] ){
 	
-	var gcode = command;
+	var gcode = command + " ";
 
 	if( param.length > 0 ){
 		var parameters = param.map(e => e.name + e.value ).join(' ');

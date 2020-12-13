@@ -10,7 +10,10 @@ typedef enum {
   runContinously,
   setVelocity,
   setAcceleration,
-  stop
+  stop,
+  setBrakeMode,
+  setHomeSpeed,
+  setStallSense
 } state_t;
 
 /* Define DEBUG to enable generelle debug output message in Serial */

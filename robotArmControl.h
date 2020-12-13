@@ -10,6 +10,7 @@
 #define HOMEFEEDRATEFAST 20.0f
 #define HOMEFEEDRATESLOW 5.0f
 
+
     /**
    * @brief	Interrupt routine for Servo.
    *
@@ -24,7 +25,8 @@ public:
   robotArmControl();
 
   void begin(void);
-
+  void masterLoop();
+  void slaveLoop();
   /* Main control function, listening for gcode and reading commands when robot
    * is ready */
   void run(void);
@@ -34,6 +36,12 @@ public:
   void setMotorAngle(uint8_t num, float angle);
 
   void setMotorSpeed(uint8_t num, float speed);
+
+  void setMotorAcceleration(uint8_t num, float acceleration);
+
+  void setMotorHomingSpeed(uint8_t num, float speed);
+
+  void setMotorStallSense(uint8_t num, float sense);
 
   void runContinously(uint8_t num, float speed);
 
@@ -47,14 +55,12 @@ public:
 
   void homeArm(void);
 
-  bool checkLimits(float rot, float left, float right);
+  uint8_t checkLimits(bool correction = false);
 
   void setPump(bool state);
 
-  void setServo(uint8_t value);
-
   void sendXYZ(void);
-
+  void setbrakeMode(uint8_t num, float brakeMode);
   float direction = 1.0;
   void checkConnOrientation(void);
 
@@ -71,20 +77,24 @@ private:
   // I2C slave function for sending current angle position */
   static void busRequestEvent(void);
 
-  uint8_t calcVelocityProfile(void);
+  uint8_t calcVelocityProfile(float baseTarget, float elbowTarget, float shoulderTarget, bool correction = false);
 
   void calcVelocityProfileMovement(void);
 
   bool inRange( float value, float target, float limit );
 
-  void setServo(float servoVal);
+  float setServo(float servoVal);
+
+  void setServo();
 
   bool isRecording = false;
   bool targetReached = true;
 
-  int8_t baseTargetReached = 0;
-  int8_t elbowTargetReached = 0;
-  int8_t shoulderTargetReached = 0;
+  int8_t baseTargetReached = 1;
+  int8_t elbowTargetReached = 1;
+  int8_t shoulderTargetReached = 1;
+
+  bool movementInProgress = 0;
 
   // Current angles
   float angleBase = 0.0;
@@ -119,6 +129,7 @@ private:
   bool targetPumpState = 0;
   float targetServo = 0.0;
   float currentServo = 0.0;
+  float filteredServo = 0.0;
   bool currentPumpState = 0;
   // Feedrate in mm/s
   float feedrate = 10.0;
@@ -128,6 +139,9 @@ private:
 
   bool valveOn = 0;
   int32_t valveOnTime;
+
+  int8_t stallSense;
+  float homeSpeed;
 };
 
 #endif

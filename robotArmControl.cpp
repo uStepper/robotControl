@@ -14,7 +14,7 @@ uint16_t pumpCompareMatch = 254;
 
 void robotArmControl::checkConnOrientation()
 {
-  int32_t value;
+  /*int32_t value;
   float connectorOrientation[4] = {-10,10,-10,10};
   for(int i; i<4; i++)
   {
@@ -29,8 +29,9 @@ void robotArmControl::checkConnOrientation()
     value = stepper.driver.readRegister(GCONF);
     value ^= (1 << 4);
     stepper.driver.writeRegister(GCONF,value);
-  }
-  stepper.encoder.setHome();
+  }*/
+	stepper.checkOrientation(15);
+  	stepper.encoder.setHome();
 }
 
 
@@ -45,7 +46,7 @@ void robotArmControl::begin() {
   stepper.setMaxVelocity(20);
   stepper.setMaxAcceleration(1000);
   stepper.setCurrent(50);
-  stepper.setup(PID,200); // Initiate the stepper object to use closed loop control
+  stepper.setup(); // Initiate the stepper object to use closed loop control
   
   stepper.disablePid();
 
@@ -60,9 +61,11 @@ void robotArmControl::begin() {
     if (bus.addressNum == SHOULDER) {
       // stepper.encoder.setHome();
       DEBUG_PRINTLN("-- I Am Shoulder --");
-      this->direction = -1.0;
+      this->direction = 1.0;
       this->checkConnOrientation();
-      stepper.setHoldCurrent(50);
+      stepper.setHoldCurrent(40);
+      this->stallSense = 2;
+      this->homeSpeed = 35.0;
     }
 
     if (bus.addressNum == ELBOW) {
@@ -71,8 +74,10 @@ void robotArmControl::begin() {
       this->direction = -1.0;
       stepper.setHoldCurrent(10);
       delay(2000);
-      stepper.setHoldCurrent(50);
+      stepper.setHoldCurrent(40);
       this->checkConnOrientation();
+      this->stallSense = 2;
+      this->homeSpeed = 35.0;
     }
   }
 
@@ -80,7 +85,7 @@ void robotArmControl::begin() {
   if (bus.addressNum == BASE) {
     // stepper.encoder.setHome();
     comm.begin();
-    this->direction = -1.0;
+    this->direction = 1.0;
     pinMode(3,INPUT);
     pinMode(2,INPUT); //Set as input initially to make sure pwm output is disable on powerup
     
@@ -92,7 +97,10 @@ void robotArmControl::begin() {
     OCR4A = 1000;
     TCCR4B |= (1 << 1); //Enable clock at prescaler 8. 16MHz/8 = 2MHz/40000 = 50Hz Servo Pulse frequency
     this->checkConnOrientation();
-    stepper.setHoldCurrent(50);
+    stepper.setHoldCurrent(40);
+
+    this->stallSense = 2;
+    this->homeSpeed = 25.0;
 
     supplyVoltage = (float)analogRead(A2);
     supplyVoltage *= 0.04882813;   //(VRef/1024) * 10   -   10k in series with 1k = 1/10th divider
@@ -112,7 +120,25 @@ void robotArmControl::begin() {
     OCR3B = pumpCompareMatch; //5V/12V = 0.417  * 256 = 106.752 = 107
     TCCR3B = (1 << 3) | (1 << 1); //prescaler = 8. 2MHz/256 = 7.8kHz PWM
     PORTD &= ~(1 << 2);
+    DEBUG_PRINTLN("-- I Am BASE --");
+    while (this->bus.requestState(ELBOW) != rdy) {
+    DEBUG_PRINTLN("ELBOW NOT RDY ");
+    delay(100);
+    }
+     DEBUG_PRINTLN("-- I Am BASE --");
+    while (this->bus.requestState(SHOULDER) != rdy) {
+      DEBUG_PRINTLN("SHOULDER NOT RDY ");
+      delay(100);
+    }
+    this->angleBase = stepper.encoder.getAngleMoved();
+    this->angleElbow = this->bus.requestAngle(ELBOW);
+    this->angleShoulder = this->bus.requestAngle(SHOULDER);
+
+    this->angleTargetBase = this->angleBase;
+    this->angleTargetShoulder = this->angleShoulder;
+    this->angleTargetElbow = this->angleElbow;
   }
+  
   //stepper.enablePid();
   DEBUG_PRINTLN("-- Setup complete --");
 }
@@ -121,9 +147,9 @@ void robotArmControl::homeArm() {
   uint8_t i;
   
 
-  bus.writeCommand(ELBOW, 's', HOMEFEEDRATEFAST);
+  bus.writeCommand(ELBOW, 's', 5.0);
   bus.writeCommand(SHOULDER, 's', 5.0);
-  stepper.setMaxVelocity(HOMEFEEDRATEFAST);
+  stepper.setMaxVelocity(5.0);
 
   bus.writeCommand(ELBOW, 'h', 0);
   for (i = 0; i < 10 && this->bus.requestState(ELBOW) != rdy; i++) {
@@ -131,8 +157,9 @@ void robotArmControl::homeArm() {
   }
   bus.writeCommand(SHOULDER, 'h', 0);
   //homeAxis(CCW);
-  stepper.moveToEnd(CCW, 0.825); // Move to stall is detected
+  stepper.moveToEnd(CCW, this->homeSpeed, this->stallSense, 15000); // Move to stall is detected
   stepper.encoder.setHome();    // Zero encoder position
+ 
   while (this->bus.requestState(ELBOW) != rdy) {
     DEBUG_PRINTLN("ELBOW NOT RDY ");
     delay(100);
@@ -141,13 +168,14 @@ void robotArmControl::homeArm() {
     DEBUG_PRINTLN("SHOULDER NOT RDY ");
     delay(100);
   }
+  
   stepper.setMaxVelocity(100);
   stepper.moveToAngle(880.0);
-  bus.writeCommand(SHOULDER, 's', HOMEFEEDRATEFAST);
+  bus.writeCommand(SHOULDER, 's', 5.0);
   delay(300);
   bus.setAngle(SHOULDER, -60.0);
   delay(1000);
-  bus.setAngle(ELBOW, 20.0);
+  bus.setAngle(ELBOW, -20.0);
   while(stepper.getMotorState());
   stepper.encoder.setHome();    // Zero encoder position
   // stepper.moveToAngle(20.0);
@@ -167,212 +195,291 @@ bool robotArmControl::inRange( float value, float target, float limit ){
   return (abs(target-value) <= limit); 
 }
 
-void robotArmControl::run() {
-
+void robotArmControl::masterLoop() 
+{
   uint32_t ms = millis();
-  state_t currentState;
-  float x1,y1,z1;
-  bool continous = 0;
+  bool continous = 1;
   uint8_t jointsAllowedToMove;
-  uint16_t adcMeas;
+  float errorBase = 0.0, errorElbow = 0.0, errorShoulder = 0.0, errorDistance;
+  uint8_t correctErrors = 0;
+  float correctionTargetAngleBase,correctionTargetAngleShoulder,correctionTargetAngleElbow;
+  float targetXCorrection,targetYCorrection,targetZCorrection;
+  float speedXCorrection,speedYCorrection,speedZCorrection;
+  this->movementInProgress = 0;
+  while (1) {
+    // Listen for commands from GUI or UART depending on what is defined in
+    // config
+    if (comm.listen() || millis() - lastCommand > 1000) {
 
-  if (bus.addressNum == BASE) {
-    
-    while (1) {
-      // Listen for commands from GUI or UART depending on what is defined in
-      // config
-      if (comm.listen() || millis() - lastCommand > 1000) {
+      this->lastCommand = millis();
 
-        this->lastCommand = millis();
+      // Execute the received command
+      this->execute(comm.getPacket());
+    } 
 
-        // Execute the received command
-        this->execute(comm.getPacket());
-      } 
+    else if (millis() - ms > 50) {
+      this->angleBase = stepper.encoder.getAngleMoved();
+      this->angleElbow = this->bus.requestAngle(ELBOW);
+      this->angleShoulder = this->bus.requestAngle(SHOULDER);
 
-      else if (millis() - ms > 50) {
-        this->angleBase = stepper.encoder.getAngleMoved();
-        this->angleElbow = this->bus.requestAngle(ELBOW);
-        this->angleShoulder = this->bus.requestAngle(SHOULDER);
-        angleToxyz(this->angleBase, this->angleElbow, this->angleShoulder,x,y,z);
-        // Check if target is reached
-        if( this->targetReached == false ){
-          
-          if(this->elbowTargetReached != 0)
+      angleToxyz(this->angleBase, this->angleElbow, this->angleShoulder,x,y,z);
+      // Check if target is reached
+      if(this->targetReached == false)
+      {
+        if(this->movementInProgress == 0)
+        {
+          this->movementInProgress = 1;
+          calcVelocityProfileMovement();
+          this->setMotorSpeed(ELBOW,this->targetElbowSpeed);
+          this->setMotorSpeed(SHOULDER,this->targetShoulderSpeed);
+          this->setMotorSpeed(BASE,this->targetBaseSpeed);
+          this->setMotorAngle(BASE,this->angleTargetBase);
+          this->setMotorAngle(ELBOW,this->angleTargetElbow);
+          this->setMotorAngle(SHOULDER,this->angleTargetShoulder);
+        }
+        else if(this->baseTargetReached == 1 && this->elbowTargetReached == 1 && this->shoulderTargetReached == 1 )
+        {
+          //DEBUG_PRINTLN("1");
+          if(this->setServo(this->targetServo) == this->targetServo)
           {
-            if(this->elbowTargetReached == -1 )
-            {
-              if(this->angleElbow < this->angleTargetElbow)
-              {
-                this->bus.stopSlave(ELBOW);
-                this->elbowTargetReached = 0;
-              }
-            }
-            else
-            {
-              if(this->angleElbow > this->angleTargetElbow)
-              {
-                this->bus.stopSlave(ELBOW);
-                this->elbowTargetReached = 0;
-              }
-            }
-          }
-          if(this->baseTargetReached != 0)
-          {
-            if(this->baseTargetReached == -1 )
-            {
-              if(this->angleBase < this->angleTargetBase)
-              {
-                stepper.stop(HARD);
-                this->baseTargetReached = 0;
-              }
-            }
-            else
-            {
-              if(this->angleBase > this->angleTargetBase)
-              {
-                stepper.stop(HARD);
-                this->baseTargetReached = 0;
-              }
-            }
-          }
-          if(this->shoulderTargetReached != 0)
-          {
-            if(this->shoulderTargetReached == -1 )
-            {
-              if(this->angleShoulder < this->angleTargetShoulder)
-              {
-                this->bus.stopSlave(SHOULDER);
-                this->shoulderTargetReached = 0;
-              }
-            }
-            else
-            {
-              if(this->angleShoulder > this->angleTargetShoulder)
-              {
-                this->bus.stopSlave(SHOULDER);
-                this->shoulderTargetReached = 0;
-              }
-            }
-          }
-          if(this->shoulderTargetReached == 0 && this->elbowTargetReached == 0 && this->baseTargetReached == 0)
-          {
-            if(this->targetServo != this->currentServo)
-            {
-              this->setServo(this->targetServo);
-              delay(200);
-            }
-            
             if(this->targetPumpState != this->currentPumpState)
             {
-              this->setPump(this->targetPumpState);
+              this->setPump(targetPumpState);
             }
-
-            Serial.println("TARGET POS REACHED");
-            comm.send("REACHED");
-            this->targetReached = true;
-          }
-        }
-        
-       
-        if(this->sx != 0.0 || this->sy != 0.0 || this->sz != 0.0 )
-        {
-          continous = 1;
-          this->tx = this->x + (this->sx * 0.2);
-          this->ty = this->y + (this->sy * 0.2);
-          this->tz = this->z + (this->sz * 0.2);
-          this->xyzToAngles(this->angleTargetBase, this->angleTargetElbow,
-                     this->angleTargetShoulder, tx, ty, tz);
-          jointsAllowedToMove = calcVelocityProfile();
-          
-          if(jointsAllowedToMove & 0x01)
-          {
-            this->runContinously(BASE, this->targetBaseSpeed);
-          }
-          else
-          {
             
-            stepper.stop(HARD);
+            this->targetReached = 1;
+            this->movementInProgress = 0;
+            comm.send("REACHED");
           }
-          
-          if(jointsAllowedToMove & 0x02)
-          {
-            this->runContinously(SHOULDER, this->targetShoulderSpeed);
-          }
-          else
-          {
-            DEBUG_PRINTLN("SHOULDER STOPPED");
-            this->bus.stopSlave(SHOULDER);
-          }
-          
-          
-          if(jointsAllowedToMove & 0x04)
-          {
-            this->runContinously(ELBOW, this->targetElbowSpeed);
-          }
-          else
-          {
-            DEBUG_PRINTLN("ELBOW STOPPED");
-            this->bus.stopSlave(ELBOW);
-          }
-          
           
         }
-        else if(continous == 1)
+        else if(this->movementInProgress == 1)
         {
-          DEBUG_PRINTLN("ALL STOPPED");
+          DEBUG_PRINTLN("2");
+          this->baseTargetReached = !stepper.getMotorState();
+          if(this->bus.requestState(ELBOW) == rdy)
+          {
+            this->elbowTargetReached = 1;
+          }
+          if(this->bus.requestState(ELBOW) == rdy)
+          {
+            this->shoulderTargetReached = 1;
+          }
+        }
+      }
+      else if(this->sx != 0.0 || this->sy != 0.0 || this->sz != 0.0 )
+      {
+        continous = 1;
+        this->tx = this->x + (this->sx * 0.2);
+        this->ty = this->y;
+        this->tz = this->z + (this->sz * 0.2);
+        this->xyzToAngles(this->angleTargetBase, this->angleTargetElbow,
+                    this->angleTargetShoulder, tx, ty, tz);
+
+        this->angleTargetBase = this->angleBase + (this->sy * 0.2);
+        
+        jointsAllowedToMove = calcVelocityProfile(this->angleTargetBase,this->angleTargetElbow,this->angleTargetShoulder);
+        
+        (jointsAllowedToMove & 0x01) ? this->runContinously(BASE, this->targetBaseSpeed) : stepper.stop(HARD);
+        (jointsAllowedToMove & 0x02) ? this->runContinously(SHOULDER, this->targetShoulderSpeed) : this->bus.stopSlave(SHOULDER);
+        (jointsAllowedToMove & 0x04) ? this->runContinously(ELBOW, this->targetElbowSpeed) : this->bus.stopSlave(ELBOW);
+      }
+      else
+      {
+        if(continous)
+        {
           continous = 0;
+          this->bus.stopSlave(ELBOW);
+          stepper.stop(HARD);
+          this->bus.stopSlave(SHOULDER);
+        }
+      }
+      
+      /*else if(continous == 1)
+      {
+        DEBUG_PRINTLN("ALL STOPPED");
+        continous = 0;
+        stepper.stop(HARD);
+        this->bus.stopSlave(ELBOW);
+        this->bus.stopSlave(SHOULDER);
+      }*/
+      /*
+      else
+      {
+        errorBase = this->angleTargetBase - (ptr->direction * this->angleBase);
+        errorElbow = this->angleTargetElbow - this->angleElbow;
+        errorShoulder = this->angleTargetShoulder - this->angleShoulder;
+        
+        correctErrors = 0;
+
+        if(errorBase < -1.0 || errorBase > 1.0){correctErrors |= 1;}
+        if(errorElbow < -1.0 || errorElbow > 1.0){correctErrors |= 2;}
+        if(errorShoulder < -1.0 || errorShoulder > 1.0){correctErrors |= 4;}
+        
+        if(correctErrors)
+        {
+
+          errorDistance = sqrt((errorBase * errorBase) + (errorElbow * errorElbow) + (errorShoulder * errorShoulder));
+          
+          if(correctErrors & 0x01)
+          {
+            correctionTargetAngleBase = this->angleBase + ((errorBase/errorDistance) * FEEDRATETOANGULARFEEDRATE(this->feedrate) * 0.2);
+            if(errorBase < 0.0)
+            {
+              if(correctionTargetAngleBase < this->angleTargetBase)
+              {
+                correctionTargetAngleBase = this->angleTargetBase;
+              }
+            }
+            else
+            {
+              if(correctionTargetAngleBase > this->angleTargetBase)
+              {
+                correctionTargetAngleBase = this->angleTargetBase;
+              }
+            }
+          }
+          if(correctErrors & 0x02)
+          {
+            correctionTargetAngleElbow = this->angleElbow + ((errorElbow/errorDistance) * FEEDRATETOANGULARFEEDRATE(this->feedrate) * 0.2);
+            if(errorElbow < 0.0)
+            {
+              if(correctionTargetAngleElbow < this->angleTargetElbow)
+              {
+                correctionTargetAngleElbow = this->angleTargetElbow;
+              }
+            }
+            else
+            {
+              if(correctionTargetAngleElbow > this->angleTargetElbow)
+              {
+                correctionTargetAngleElbow = this->angleTargetElbow;
+              }
+            }
+          }
+          if(correctErrors & 0x04)
+          {
+            correctionTargetAngleShoulder = this->angleShoulder + ((errorShoulder/errorDistance) * FEEDRATETOANGULARFEEDRATE(this->feedrate) * 0.2);
+            if(errorShoulder < 0.0)
+            {
+              if(correctionTargetAngleShoulder < this->angleTargetShoulder)
+              {
+                correctionTargetAngleShoulder = this->angleTargetShoulder;
+              }
+            }
+            else
+            {
+              if(correctionTargetAngleShoulder > this->angleTargetShoulder)
+              {
+                correctionTargetAngleShoulder = this->angleTargetShoulder;
+              }
+            }
+          }
+
+          jointsAllowedToMove = calcVelocityProfile(correctionTargetAngleBase,correctionTargetAngleElbow,correctionTargetAngleShoulder,true);
+          DEBUG_PRINT("this->targetBaseSpeed: ");
+          DEBUG_PRINTLNFLOAT(this->targetBaseSpeed,3);
+          DEBUG_PRINT("this->targetElbowSpeed: ");
+          DEBUG_PRINTLNFLOAT(this->targetElbowSpeed,3);
+          DEBUG_PRINT("this->targetShoulderSpeed: ");
+          DEBUG_PRINTLNFLOAT(this->targetShoulderSpeed,3);
+          (jointsAllowedToMove & 0x01) ? this->runContinously(BASE, this->targetBaseSpeed) : stepper.stop(HARD);
+          (jointsAllowedToMove & 0x02) ? this->runContinously(ELBOW, -this->targetElbowSpeed) : this->bus.stopSlave(ELBOW);
+          (jointsAllowedToMove & 0x04) ? this->runContinously(SHOULDER, -this->targetShoulderSpeed) : this->bus.stopSlave(SHOULDER);
+          
+        }
+        else
+        {
           stepper.stop(HARD);
           this->bus.stopSlave(ELBOW);
           this->bus.stopSlave(SHOULDER);
         }
-        ms = millis();
-        if(this->valveOn)
+      }*/
+      ms = millis();
+      if(this->valveOn)
+      {
+        if(ms >= this->valveOnTime)
         {
-          if(ms >= this->valveOnTime)
-          {
-            this->valveOn = 0;
-            DDRD &= ~(1 << 3);    //Turn off valve
-          }
+          this->valveOn = 0;
+          DDRD &= ~(1 << 3);    //Turn off valve
         }
       }
     }
-  } else {
-    while (1) {
-      cli();
-      state = nextCommand;
-      currentCommandArgument.f = nextCommandArgument.f;
-      nextCommand = rdy;
-      sei();
-      if (state == home) {
-        stepper.stop(HARD);
-        stepper.moveToAngle(stepper.encoder.getAngleMoved());
-        if (bus.addressNum == ELBOW) {
-          stepper.moveToEnd(CW, 0.7);
-        } else {
-          stepper.moveToEnd(CCW, 0.9);
-        }
-        stepper.encoder.setHome(); // Zero encoder position
-      } else if (state == stop) {
-        stepper.stop(HARD);
-        stepper.moveToAngle(stepper.encoder.getAngleMoved());
-      } else if (state == move) {
-        stepper.moveToAngle(ptr->direction * currentCommandArgument.f);
-      } else if (state == resetHome) {
-        stepper.encoder.setHome(); // Zero encoder position
-      } else if (state == setVelocity) {
-        stepper.setMaxVelocity(currentCommandArgument.f);
-      } else if (state == 5) {
-        stepper.setMaxVelocity(currentCommandArgument.f);
-        if (currentCommandArgument.f < 0.0) {
-          stepper.runContinous(CCW);
-        } else {
-          stepper.runContinous(CW);
-        }
-      } else if (state == setAcceleration) {
-        stepper.setMaxAcceleration(currentCommandArgument.f);
-        stepper.setMaxDeceleration(currentCommandArgument.f);
+    this->setServo();
+  }
+}
+
+void robotArmControl::slaveLoop() 
+{
+  while (1) 
+  {
+    cli();
+    state = nextCommand;
+    currentCommandArgument.f = nextCommandArgument.f;
+    nextCommand = rdy;
+    sei();
+    if (state == home) {
+      stepper.stop(HARD);
+      stepper.moveToAngle(stepper.encoder.getAngleMoved());
+      
+      if (ptr->direction<0) {
+        stepper.moveToEnd(CCW, this->homeSpeed, this->stallSense,15000 ); // Move to stall is detected
+      } else {
+        stepper.moveToEnd(CW, this->homeSpeed, this->stallSense,15000 ); // Move to stall is detected
+      }
+      stepper.encoder.setHome(); // Zero encoder position
+    } else if (state == stop) {
+      stepper.stop(HARD);
+      stepper.moveToAngle(stepper.encoder.getAngleMoved());
+    } else if (state == move) {
+      stepper.moveToAngle(ptr->direction * currentCommandArgument.f);
+    } else if (state == resetHome) {
+      stepper.encoder.setHome(); // Zero encoder position
+    } else if (state == setVelocity) {
+      stepper.setMaxVelocity(currentCommandArgument.f);
+    } else if (state == 5) {
+      stepper.setMaxVelocity(currentCommandArgument.f);
+      if (ptr->direction * currentCommandArgument.f < 0.0) {
+        stepper.runContinous(CW);
+      } else {
+        stepper.runContinous(CCW);
+      }
+    } else if (state == setAcceleration) {
+      stepper.setMaxAcceleration(currentCommandArgument.f);
+      stepper.setMaxDeceleration(currentCommandArgument.f);
+    }
+    else if (state == setBrakeMode) {
+      if(currentCommandArgument.f == 0.0)
+      {
+        stepper.setBrakeMode(FREEWHEELBRAKE);
+      }
+      else if(currentCommandArgument.f == 1.0)
+      {
+        stepper.setBrakeMode(COOLBRAKE);
+      }
+      else if(currentCommandArgument.f == 2.0)
+      {
+        stepper.setBrakeMode(HARDBRAKE);
       }
     }
+    else if (state == setHomeSpeed) {
+      this->homeSpeed = currentCommandArgument.f;
+    }
+    else if (state == setStallSense) {
+      this->stallSense = currentCommandArgument.f;
+    }
+  }
+}
+
+void robotArmControl::run() {
+
+  if (bus.addressNum == BASE) 
+  {
+    this->masterLoop();
+  } 
+  else 
+  {
+    this->slaveLoop();
   }
 }
 
@@ -387,12 +494,11 @@ void TIMER4_OVF_vect(void)
   asm volatile("reti \n\t");
 }
 
-uint8_t robotArmControl::calcVelocityProfile(void) {
+uint8_t robotArmControl::calcVelocityProfile(float baseTarget, float elbowTarget, float shoulderTarget, bool correction) {
   float baseDistance, elbowDistance, shoulderDistance;
   float euclideanDistance;
   float angularFeedrate = FEEDRATETOANGULARFEEDRATE(this->feedrate);
-  uint8_t jointsAllowedToMove = 0;    //0 = not allowed to move, 1 allowed to move. bit0 = base, bit1 = shoulder, bit2 = elbow
-  this->angleBase = stepper.encoder.getAngleMoved();
+  this->angleBase = ptr->direction * stepper.encoder.getAngleMoved();
   this->angleShoulder = this->bus.requestAngle(SHOULDER);
   this->angleElbow = this->bus.requestAngle(ELBOW);
 /*
@@ -410,18 +516,30 @@ uint8_t robotArmControl::calcVelocityProfile(void) {
   DEBUG_PRINT(" ShoulderAngleTarget: ");
   DEBUG_PRINTLN(this->angleTargetShoulder);
 */
-  if(this->sy == 0.0)
+  if(correction)
   {
-    baseDistance = 0.0;
+    baseDistance = baseTarget - this->angleBase;
   }
-  else
+  else 
   {
-    baseDistance = this->angleTargetBase - this->angleBase;
+    if(this->sy == 0.0)
+    {
+      baseDistance = 0.0;
+    }
+    else
+    {
+      baseDistance = baseTarget - this->angleBase;
+    }
   }
-  
-  
-  elbowDistance = this->angleTargetElbow - this->angleElbow;
-  shoulderDistance = this->angleTargetShoulder - this->angleShoulder;
+
+  elbowDistance = elbowTarget - this->angleElbow;
+  shoulderDistance = shoulderTarget - this->angleShoulder;
+  DEBUG_PRINT("Elbow: ");
+  DEBUG_PRINTLNFLOAT(elbowDistance,3);
+  DEBUG_PRINT("Shoulder: ");
+  DEBUG_PRINTLNFLOAT(shoulderDistance,3);
+  DEBUG_PRINT("Base: ");
+  DEBUG_PRINTLNFLOAT(baseDistance,3);
 /*
   DEBUG_PRINT("BaseDist: ");
   DEBUG_PRINTFLOAT(baseDistance,5);
@@ -438,57 +556,8 @@ uint8_t robotArmControl::calcVelocityProfile(void) {
   this->targetBaseSpeed = (baseDistance / euclideanDistance) * angularFeedrate;
   this->targetElbowSpeed = (elbowDistance / euclideanDistance) * angularFeedrate;
   this->targetShoulderSpeed = (shoulderDistance / euclideanDistance) * angularFeedrate;
-  DEBUG_PRINTLN(abs(this->angleBase));
-  if(abs(this->angleBase) < (160.0 * GEARRATIO))
-  {
-    DEBUG_PRINTLN("MASTER CAN RUN");
-    jointsAllowedToMove |= 0x01;
-  }
-
-  if(this->angleShoulder > (-120.0 * GEARRATIO))
-  {
-    jointsAllowedToMove |= 0x02;  //ok
-  }
-  if(this->targetShoulderSpeed > 0.0)
-  {
-    if((abs(this->angleElbow) + 20.0) < abs(this->angleShoulder))
-    {
-      if(this->angleShoulder < -10.0)
-      {
-        jointsAllowedToMove |= 0x02;
-      }
-      else
-      {
-        jointsAllowedToMove &= ~0x02;
-      }
-    }
-    else
-    {
-      jointsAllowedToMove &= ~0x02;
-    }
-  }
+  //DEBUG_PRINTLN(abs(this->angleBase));
   
-  if((this->angleElbow + 20.0) < -this->angleShoulder)
-  {
-    jointsAllowedToMove |= 0x04;
-  }
-  if(this->targetElbowSpeed < 0.0)
-  {
-    if(this->angleElbow > 10.0)
-    {
-      jointsAllowedToMove |= 0x04;
-    }
-    else
-    {
-      jointsAllowedToMove &= ~0x04;
-    }
-  }
-
-  if(this->sy == 0.0)
-  {
-    DEBUG_PRINTLN("MASTER STOPPED");
-    jointsAllowedToMove &= ~0x01;
-  }
 
   //jointsAllowedToMove |= 0x04;
   /*
@@ -512,7 +581,7 @@ uint8_t robotArmControl::calcVelocityProfile(void) {
   /*stepper.setMaxAcceleration(nextCommandArgument.f);
   stepper.setMaxDeceleration(nextCommandArgument.f);*/
 
-  return jointsAllowedToMove;
+  return this->checkLimits(correction);
 }
 
 void robotArmControl::calcVelocityProfileMovement(void) {
@@ -553,70 +622,73 @@ void robotArmControl::calcVelocityProfileMovement(void) {
            (shoulderDistance * shoulderDistance));
 
   
-  this->targetBaseSpeed = -(baseDistance / euclideanDistance) * angularFeedrate;
+  this->targetBaseSpeed = (baseDistance / euclideanDistance) * angularFeedrate;
   this->targetElbowSpeed = (elbowDistance / euclideanDistance) * angularFeedrate;
   this->targetShoulderSpeed = (shoulderDistance / euclideanDistance) * angularFeedrate;
 
-  if(baseDistance < 0)
-  {
-    this->baseTargetReached = -1;
-  }
-  else
-  {
-    this->baseTargetReached = 1;
-  }
-
-  if(elbowDistance < 0)
-  {
-    this->elbowTargetReached = -1;
-  }
-  else
-  {
-    this->elbowTargetReached = 1;
-  }
-
-  if(shoulderDistance < 0)
-  {
-    this->shoulderTargetReached = -1;
-  }
-  else
-  {
-    this->shoulderTargetReached = 1;
-  }
+  this->baseTargetReached = 0;
+  this->elbowTargetReached = 0;
+  this->shoulderTargetReached = 0;
   
 }
-void robotArmControl::setServo(float servoVal) {
+
+void robotArmControl::setServo() {
+  uint16_t servoSetting;
+  static int32_t lastRun = millis();
+  if(millis() - lastRun >= 15)
+  {
+    lastRun = millis();
+  }
+  else
+  {
+    return;
+  }
+  
+  if(this->filteredServo < this->currentServo)
+  {
+    this->filteredServo += 1.0;
+    if(this->filteredServo > this->currentServo)
+    {
+      this->filteredServo = this->currentServo;
+    }
+  }
+  else if(this->filteredServo > this->currentServo)
+  {
+    this->filteredServo -= 1.0;
+    if(this->filteredServo < this->currentServo)
+    {
+      this->filteredServo = this->currentServo;
+    }
+  }
+  else
+  {
+    return;
+  }
+  DEBUG_PRINTLN(this->filteredServo);
+  servoSetting = (uint16_t)(this->filteredServo*22.222222222)+1000;
+  if(servoSetting < 1000)
+  {
+    servoSetting = 1000;
+  }
+  if(servoSetting > 5000)
+  {
+    servoSetting = 5000;
+  }
+
+  OCR4A = servoSetting;
+}
+
+float robotArmControl::setServo(float servoVal) {
     DEBUG_PRINT("Servo: ");
     DEBUG_PRINTLN(servoVal);
-    uint16_t servoSetting;
-    servoSetting = (uint16_t)(servoVal*22.222222222)+1000;
-    if(servoSetting < 1000)
-    {
-      servoSetting = 1000;
-    }
-    if(servoSetting > 5000)
-    {
-      servoSetting = 5000;
-    }
-    OCR4A = servoSetting;
     this->currentServo = servoVal;
+    this->setServo();
+    return this->filteredServo;
 }
 
 void robotArmControl::setXYZ() {
   
   this->xyzToAngles(this->angleTargetBase, this->angleTargetElbow, this->angleTargetShoulder, tx, ty, tz);
-  calcVelocityProfileMovement();
-  
-  this->runContinously(ELBOW, this->targetElbowSpeed);
-  this->runContinously(SHOULDER, this->targetShoulderSpeed);
-  this->runContinously(BASE, this->targetBaseSpeed);
-  //setMotorAngle(BASE, this->angleTargetBase);
-  //setMotorAngle(ELBOW, this->angleTargetElbow);
-  //setMotorAngle(SHOULDER, this->angleTargetShoulder);
-  
-  /*if (this->checkLimits(this->angleTargetBase, this->angleTargetElbow, this->angleTargetShoulder) == 0) {
-    // NO LIMIT CHECKING????
-  }*/
 }
 
 void robotArmControl::execute(char *command) {
@@ -646,8 +718,9 @@ void robotArmControl::execute(char *command) {
     if ((px || py || pz) != true)
       comm.send("INVALID POS");
     else
+      DEBUG_PRINT("STARTING MOVE");
       this->targetReached = false;
-      Serial.println("TARGET POS RECEIVED");
+      this->movementInProgress = 0;
       setXYZ();
   }
 
@@ -663,18 +736,41 @@ void robotArmControl::execute(char *command) {
     }
 
     else {
+      if(this->sx!=0)
+      {
+        if(this->sx>0 && this->sx<10)
+        {
+          this->sx=10;
+        }
+        else if(this->sx<0 && this->sx>-10)
+        {
+          this->sx=-10;
+        }
+      }
+      if(this->sy!=0)
+      {
+        if(this->sy>0 && this->sy<10)
+        {
+          this->sy=10;
+        }
+        else if(this->sy<0 && this->sy>-10)
+        {
+          this->sy=-10;
+        }
+      }
+      if(this->sz!=0)
+      {
+        if(this->sz>0 && this->sz<10)
+        {
+          this->sz=10;
+        }
+        else if(this->sz<0 && this->sz>-10)
+        {
+          this->sz=-10;
+        }
+      }
       this->feedrate = sqrt((this->sx*this->sx) + (this->sy*this->sy) + (this->sz*this->sz));
-      /*
-      if (sx) {
-        this->runContinously(BASE, this->sx);
       }
-      if (sy) {
-        this->runContinously(ELBOW, this->sy);
-      }
-      if (sz) {
-        this->runContinously(SHOULDER, this->sz);
-      }
-    */}
   }
 
   else if (comm.check("M0")) {
@@ -716,12 +812,136 @@ void robotArmControl::execute(char *command) {
     
 
   else if (comm.check("M6"))
+  {  
     // PUMP OFF
     this->setPump(false);
+  }
 
   else if (comm.check("M9"))
+  {  
     //Send current position in xyz
     this->sendXYZ();
+  }
+
+  else if (comm.check("M14"))
+  {  
+    //Set brakemode to freewheel
+    this->setbrakeMode(BASE,0.0);
+    this->setbrakeMode(ELBOW,0.0);
+    this->setbrakeMode(SHOULDER,0.0);
+  }
+
+  else if (comm.check("M15"))
+  {  
+    //Set brakemode to coolbrake
+    this->setbrakeMode(BASE,1.0);
+    this->setbrakeMode(ELBOW,1.0);
+    this->setbrakeMode(SHOULDER,1.0);
+  }
+
+  else if (comm.check("M16"))
+  {  
+    //Set brakemode to hardbrake
+    this->setbrakeMode(BASE,2.0);
+    this->setbrakeMode(ELBOW,2.0);
+    this->setbrakeMode(SHOULDER,2.0);
+  }
+  else if (comm.check("M17"))
+  {
+    float acceleration;
+    if (!comm.value("A", &acceleration)) 
+    {
+      comm.send("INVALID acceleration");
+    } 
+    else {
+      this->setMotorAcceleration(BASE,FEEDRATETOANGULARFEEDRATE(acceleration));
+      this->setMotorAcceleration(ELBOW,FEEDRATETOANGULARFEEDRATE(acceleration));
+      this->setMotorAcceleration(SHOULDER,FEEDRATETOANGULARFEEDRATE(acceleration));
+    }
+    
+    DEBUG_PRINTLN("M17");
+  }
+  else if (comm.check("M18"))
+  {
+    float sense;
+    if (!comm.value("S", &sense)) 
+    {
+      comm.send("INVALID sense");
+    } 
+    else {
+      this->setMotorStallSense(BASE,sense);
+    }
+    
+    DEBUG_PRINTLN("M18");
+  }
+  else if (comm.check("M19"))
+  {
+    float sense;
+    if (!comm.value("S", &sense)) 
+    {
+      comm.send("INVALID sense");
+    } 
+    else {
+      this->setMotorStallSense(ELBOW,sense);
+    }
+    
+    DEBUG_PRINTLN("M19");
+  }
+  else if (comm.check("M20"))
+  {
+    float sense;
+    if (!comm.value("S", &sense)) 
+    {
+      comm.send("INVALID sense");
+    } 
+    else {
+      this->setMotorStallSense(SHOULDER,sense);
+    }
+    
+    DEBUG_PRINTLN("M20");
+  }
+  else if (comm.check("M21"))
+  {
+    float speed;
+    DEBUG_PRINTLN("M21");
+    if (!comm.value("S", &speed)) 
+    {
+      comm.send("INVALID speed");
+    } 
+    else {
+      this->setMotorHomingSpeed(BASE,speed);
+    }
+    
+    DEBUG_PRINTLN("M21");
+  }
+  else if (comm.check("M22"))
+  {
+    float speed;
+    if (!comm.value("S", &speed)) 
+    {
+      comm.send("INVALID speed");
+    } 
+    else {
+      this->setMotorHomingSpeed(ELBOW,speed);
+    }
+    
+    DEBUG_PRINTLN("M22");
+  }
+  else if (comm.check("M23"))
+  {
+    float speed;
+    if (!comm.value("S", &speed)) 
+    {
+      comm.send("INVALID speed");
+    } 
+    else {
+      this->setMotorHomingSpeed(SHOULDER,speed);
+    }
+    
+    DEBUG_PRINTLN("M23");
+  }
+  
+    
 
   else if (comm.check("G28"))
   {
@@ -811,7 +1031,7 @@ void robotArmControl::xyzToAngles(float &rot, float &left, float &right, float x
 
   right -= SHOULDEROFFSET;
 
-  left = -((left + right) *
+  left = ((left + right) *
            RAD2DEGGEARED); // Remeber to map elbow angle down to motor angle
   right *= RAD2DEGGEARED;
 /*
@@ -846,7 +1066,7 @@ void robotArmControl::angleToxyz(float rot, float left, float right,
   right *= DEG2RADGEARED;
   left *= DEG2RADGEARED;
 
-  left = (-left - right) + ELBOWOFFSET; // Remember to map secondary gear angle to elbow angle !
+  left = (left - right) + ELBOWOFFSET; // Remember to map secondary gear angle to elbow angle !
   right += SHOULDEROFFSET;
 
   z = ZOFFSET + sin(right) * LOWERARMLEN -
@@ -887,14 +1107,65 @@ void robotArmControl::setMotorAngle(uint8_t num, float angle) {
 
 // Function is only used by master to control all three motors
 void robotArmControl::setMotorSpeed(uint8_t num, float speed) {
-  float velocity = this->direction * speed;
 
   if (num == BASE) {
-    stepper.setMaxVelocity(velocity);
+    stepper.setMaxVelocity(speed);
 
   } else {
 
-    bus.setSpeed(num, velocity);
+    bus.setSpeed(num, speed);
+  }
+}
+
+void robotArmControl::setMotorHomingSpeed(uint8_t num, float speed)
+{
+  if (num == BASE) {
+    this->homeSpeed = speed;
+  } else {
+    bus.setHomingSpeed(num, speed);
+  }
+}
+
+void robotArmControl::setMotorStallSense(uint8_t num, float sense)
+{
+  if (num == BASE) {
+    this->stallSense = (int8_t)sense;
+  } else {
+    bus.setStallSense(num, sense);
+  }
+}
+
+// Function is only used by master to control all three motors
+void robotArmControl::setMotorAcceleration(uint8_t num, float acceleration) {
+  DEBUG_PRINTLN(acceleration);
+  if (num == BASE) {
+    stepper.setMaxAcceleration(acceleration);
+    stepper.setMaxDeceleration(acceleration);
+  } else {
+
+    bus.setAcceleration(num, acceleration);
+  }
+}
+
+// Function is only used by master to control all three motors
+void robotArmControl::setbrakeMode(uint8_t num, float brakeMode) {
+
+  if (num == BASE) {
+    if(brakeMode == 0.0)
+    {
+      stepper.setBrakeMode(FREEWHEELBRAKE);
+    }
+    else if(brakeMode == 1.0)
+    {
+      stepper.setBrakeMode(COOLBRAKE);
+    }
+    else if(brakeMode == 2.0)
+    {
+      stepper.setBrakeMode(HARDBRAKE);
+    }
+  } else {
+
+    bus.setBrakeMode(num, brakeMode);
   }
 }
 
@@ -905,41 +1176,76 @@ void robotArmControl::runContinously(uint8_t num, float speed) {
   if (num == BASE) {
     stepper.setMaxVelocity(velocity);
 
-    if (this->direction * velocity < 0.0) {
+    if (velocity < 0.0) {
       stepper.runContinous(CCW);
     } else {
       stepper.runContinous(CW);
     }
   } else {
 
-    bus.runContinously(num, velocity);
+    bus.runContinously(num, speed);
   }
 }
 
 // Function for checking the constraints on the robot before moving - we can
 // decide to either move to closest possible or return fault
-bool robotArmControl::checkLimits(float rot, float left, float right) {
-  // limit #1: gear angles must always be positive
-  if ((rot || left) < 0 && right > 0) {
-    return 0;
+uint8_t robotArmControl::checkLimits(bool correction) {
+  uint8_t jointsAllowedToMove = 0xFF;//0 = not allowed to move, 1 allowed to move. bit0 = base, bit1 = shoulder, bit2 = elbow
+
+  if(this->angleBase < (-160.0 * GEARRATIO) && this->targetBaseSpeed < 0)
+  {
+    jointsAllowedToMove &= ~0x01;  //not ok
   }
-  // limit #2: keep elbow gear behind shoulder gear at all times to avoid
-  // collision between gear and main arm. 2 deg motor angle in addition to
-  // homing angle should suffice
-  else if ((left - 2) >= right) {
-    return 0;
+  else if(this->angleBase > (160.0 * GEARRATIO) && this->targetBaseSpeed > 0)
+  {
+    jointsAllowedToMove &= ~0x01;  //not ok
   }
-  // limit #3: rotation can only go from 0 to 358 degree because of hard stop
-  else if (rot > 358 * GEARRATIO) {
-    return 0;
+
+  /********Shoulder hard limits**********/
+  if(this->angleShoulder < (-120.0 * GEARRATIO) && this->targetShoulderSpeed > 0)
+  {
+    jointsAllowedToMove &= ~0x02;  //not ok
   }
-  // limit #4: main gear (shoulder) must never go below 10 degrees from
-  // horizontal to avoid skewing the parallelograms of the robot
-  else if (right > 80) {
-    return 0;
-  } else {
-    return 1;
+  else if(this->angleShoulder > (-2.0 * GEARRATIO) && this->targetShoulderSpeed < 0)
+  {
+    jointsAllowedToMove &= ~0x02;  //not ok
   }
+
+  /***********Elbow hard limits*************/
+  if(this->angleElbow < (-90.0 * GEARRATIO) && this->targetElbowSpeed > 0)
+  {
+    jointsAllowedToMove &= ~0x04;  //not ok
+  }
+  else if(this->angleElbow > (-2.0 * GEARRATIO) && this->targetElbowSpeed < 0)
+  {
+    jointsAllowedToMove &= ~0x04;  //not ok
+  }
+  /**************Elbow/shoulder dynamic limits**********************/
+  if(this->angleElbow - this->angleShoulder < (5.0 * GEARRATIO))
+  {
+    if(this->targetElbowSpeed < 0 && this->targetShoulderSpeed > 0)
+    {
+      //intentionally left blank 
+    }
+    else if(this->targetElbowSpeed < 0)
+    {
+      jointsAllowedToMove &= ~0x02; // shoulder not ok to move
+    }
+    else
+    {
+      jointsAllowedToMove &= ~0x04; // elbow not ok to move
+    }
+  }
+  if(correction == false)
+  {
+    if(this->sy == 0.0)// Due to rounding errors the y-axis can twitch even though not commanded to move
+    {
+      DEBUG_PRINTLN("MASTER STOPPED");
+      jointsAllowedToMove &= ~0x01;// so dont move if not commanded to
+    }
+  }
+  
+  return jointsAllowedToMove;
 }
 
 void robotArmControl::setPump(bool state) {
@@ -956,7 +1262,7 @@ void robotArmControl::setPump(bool state) {
     PORTD &= ~(1 << 2);
     DDRD |= (1 << 3);
     this->valveOn = 1;
-    this->valveOnTime = millis() + 1000;
+    this->valveOnTime = millis() + 5000;
   }
   this->currentPumpState = state;
 }
@@ -1022,6 +1328,36 @@ void robotArmControl::busReceiveEvent(void) {
       nextCommandArgument = value;
       nextCommand = move;
     } break;
+    case 'b': // setBrakeMode
+    {
+      value.b[0] = buf[1];
+      value.b[1] = buf[2];
+      value.b[2] = buf[3];
+      value.b[3] = buf[4];
+
+      nextCommandArgument = value;
+      nextCommand = setBrakeMode;
+    } break;
+    case 'H': // setHomeSpeed
+    {
+      value.b[0] = buf[1];
+      value.b[1] = buf[2];
+      value.b[2] = buf[3];
+      value.b[3] = buf[4];
+
+      nextCommandArgument = value;
+      nextCommand = setHomeSpeed;
+    } break;
+    case 'f': // setSensitivity
+    {
+      value.b[0] = buf[1];
+      value.b[1] = buf[2];
+      value.b[2] = buf[3];
+      value.b[3] = buf[4];
+
+      nextCommandArgument = value;
+      nextCommand = setStallSense;
+    } break;
     case 'q': // request some information. does not affect state
       value.b[0] = buf[1];
       value.b[1] = buf[2];
@@ -1039,7 +1375,7 @@ void robotArmControl::busRequestEvent(void) {
   uint8_t data;
 
   if (address == 0.0) {
-    value.f = stepper.angleMoved();
+    value.f = ptr->direction * stepper.angleMoved();
     // Send each byte of the float through the union
     I2CPORT.write(value.b, 4);
   } else if (address == 1.0) {
