@@ -100,7 +100,7 @@ void robotArmControl::begin() {
     stepper.setHoldCurrent(40);
 
     this->stallSense = 2;
-    this->homeSpeed = 25.0;
+    this->homeSpeed = 30.0;
 
     supplyVoltage = (float)analogRead(A2);
     supplyVoltage *= 0.04882813;   //(VRef/1024) * 10   -   10k in series with 1k = 1/10th divider
