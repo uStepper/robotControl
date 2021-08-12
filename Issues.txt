@@ -1,1 +1,0 @@
-[Non critical] Positive traveldistance gives negative position changes. Thus in the limitcheck we check on negative positions and positive travelspeed which doesnt seem intuitive.
