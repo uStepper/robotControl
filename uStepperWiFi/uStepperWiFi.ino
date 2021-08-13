@@ -27,6 +27,7 @@ float servoValue = 0.0;
 bool pumpState = false;
 uint8_t statusLed = 4;
 uint32_t previousBlink = 0;
+float playBackValue = 10.0;
 
 // Local path to save the GCode recordings
 char recordPath[] = "/recording.txt";
@@ -150,7 +151,8 @@ void playNextLine( void ){
     
     strcat(command, "G1 ");
     strcat(command, buf);
-    strcat(command, " F10.0"); // Set feedrate to 10mm/s 
+    strcat(command, " F"); // Set feedrate
+    strcat(command, String(playBackValue).c_str()); //to playBackValue
 
     // For debugging
     websocket.broadcastTXT("Playing line " + String(recordLineCount) + ": " + String(command));
@@ -195,31 +197,31 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t len) {
     lastPackage = millis();
 
     packet = (char *)payload;
-
+    
     // Start new recording
-    if (strstr(packet, "M2")) {
+    if (strstr(packet, "M2 ")) {
       clearData();
       isRecording = true;
       return;
     }
 
     // Stop recording
-    else if (strstr(packet, "M3")) {
+    else if (strstr(packet, "M3 ")) {
       isRecording = false;
     }
 
     // Sniff Pump state (on)
-    else if (strstr(packet, "M5")) {
+    else if (strstr(packet, "M5 ")) {
       pumpState = true;
     }
 
     // Sniff Pump state (off)
-    else if (strstr(packet, "M6")) {
+    else if (strstr(packet, "M6 ")) {
       pumpState = false;
     }
 
     // Sniff servo pos
-    else if (strstr(packet, "M4")) {
+    else if (strstr(packet, "M4 ")) {
       Serial.println(packet);
       char *start;
       char *end;
@@ -244,7 +246,29 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t len) {
     }
 
     // Play recording
-    else if (strstr(packet, "M11")) {
+    else if (strstr(packet, "M11 ")) {
+      Serial.println(packet);
+      char *start;
+      char *end;
+      size_t len;
+      int i;
+
+      char buf[20] = {'\0'};
+
+      // Find start of parameter value
+      if (start = strstr(packet, "F")) {
+
+        start++; // Not interested in the param name
+        for(i = 0; (*start >= '0' && *start <= '9'); i++)
+        {
+          buf[i] = *start++;
+        }
+        buf[i] = '\0';
+
+        // Now convert the string in buf to a float
+        playBackValue = atof(buf);
+      }
+
       if( playRecording ){
         // Reset playback of recording
         recordLineCount = 0;  
@@ -257,14 +281,14 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t len) {
     }
 
     // Pause recording
-    else if (strstr(packet, "M12")) {
+    else if (strstr(packet, "M12 ")) {
       playRecording = false;
       websocket.broadcastTXT("PAUSE RECORDING"); // Debugging
       return;
     }
 
     // Add line to recording
-    else if (strstr(packet, "M13")) {
+    else if (strstr(packet, "M13 ")) {
       char temp[50] = {'\0'};
       String recording = "X" + String(x) + " Y" + String(y) + " Z" + String(z) + " S" + String(servoValue) + " P" + String((uint8_t)pumpState);
       //String recording = "X" + String(x) + " Y" + String(y) + " Z" + String(z);
@@ -275,17 +299,17 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t len) {
     }
 
     // Emergency stop?
-    else if (strstr(packet, "M0")) {
+    else if (strstr(packet, "M0 ")) {
       playRecording = false;
       link.send("M10 X0.0 Y0.0 Z0.0");
     }
 
     // If a M10 command (xyz speeds) is received while playing drop the message
-    else if( strstr( packet, "M10")){
+    else if( strstr( packet, "M10 ")){
       if(playRecording)
         return;
     }
-
+    
     // Afterwards, just pass the data on to the uStepper
     strcpy(commandBuffer, packet);
 
