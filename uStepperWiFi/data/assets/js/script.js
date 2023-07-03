@@ -2,6 +2,7 @@
 var websocket;
 
 var lastG1Command = [];
+var joystickHandlerCnt = 0;
 
 // Position returned from device
 var pos = {
@@ -472,7 +473,6 @@ recordBtn.onclick = function(){
 
 // Keep the websocket connection alive 
 var websocketInterval = function() {
-
 	if(websocket.readyState == 1){
 		if( initPosition ){
 			if(silenceWebsocket === 0)
@@ -500,10 +500,11 @@ var websocketInterval = function() {
 }
 
 function joystickControl(){
-	
 	var feedrateX = 0;
 	var feedrateY = 0;
 	var feedrateZ = 0;
+	
+	joystickHandlerCnt++;
 
 	joystickMinValue = 10.0;
 	joystickMaxValue = 100.0;
@@ -511,10 +512,11 @@ function joystickControl(){
 	feedrateSpan = parseFloat(maxFeedrate.value - minFeedrate.value);
 
 	scaleFactor = feedrateSpan/joystickActiveValueSpan;
-
+	
 	if(xyjoystick.isActive())
 	{
 		var xy = xyjoystick.getPosition();
+		console.log(xy);
 		xyJoystickActive = true;
 		
 		if(Math.abs(xy.y) < joystickMinValue)
@@ -523,7 +525,11 @@ function joystickControl(){
 		}
 		else
 		{
-			feedrateY = (xy.y/Math.abs(xy.y))*(parseFloat(minFeedrate.value) + (xy.y - joystickMinValue)*scaleFactor);
+			feedrateY = Math.abs(xy.y) - joystickMinValue;
+			feedrateY *= scaleFactor;
+			feedrateY += joystickMinValue;
+			if(xy.y < 0.0) feedrateY *= -1.0;
+			//feedrateY = (xy.y/Math.abs(xy.y))*(parseFloat(minFeedrate.value) + (xy.y - joystickMinValue)*scaleFactor);
 		}
 		if(Math.abs(xy.x) < joystickMinValue)
 		{
@@ -531,7 +537,10 @@ function joystickControl(){
 		}
 		else
 		{
-			feedrateX = (xy.x/Math.abs(xy.x))*(parseFloat(minFeedrate.value) + (xy.x - joystickMinValue)*scaleFactor);
+			feedrateX = Math.abs(xy.x) - joystickMinValue;
+			feedrateX *= scaleFactor;
+			feedrateX += joystickMinValue;
+			if(xy.x < 0.0) feedrateX *= -1.0;
 		}
 	}
 	else
@@ -552,7 +561,10 @@ function joystickControl(){
 		}
 		else
 		{
-			feedrateZ = (z.y/Math.abs(z.y))*(parseFloat(minFeedrate.value) + (z.y - joystickMinValue)*scaleFactor);
+			feedrateZ = Math.abs(z.y) - joystickMinValue;
+			feedrateZ *= scaleFactor;
+			feedrateZ += joystickMinValue;
+			if(z.y > 0.0) feedrateZ *= -1.0;
 		}
 	}
 	else
@@ -572,8 +584,15 @@ function joystickControl(){
 		{
 			lastG1Command = command;
 			sendCommand( "M10", lastG1Command);
+			console.log(command);
 		}
-		//sendCommand( "M10", lastG1Command);
+		else if(joystickHandlerCnt > 10)
+		{
+			sendCommand( "M10", lastG1Command);
+			console.log(command);
+			joystickHandlerCnt = 0;
+		}
+		
 		return;
 	}
 	if(pos.x < 0.0)
@@ -591,7 +610,13 @@ function joystickControl(){
 	{
 		lastG1Command = command;
 		sendCommand( "M10", lastG1Command);
-		//console.log(command);
+		console.log(command);
+	}
+	else if(joystickHandlerCnt > 10)
+	{
+		sendCommand( "M10", lastG1Command);
+		console.log(command);
+		joystickHandlerCnt = 0;
 	}
 }
 
